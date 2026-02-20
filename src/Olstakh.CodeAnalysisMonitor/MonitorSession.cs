@@ -4,7 +4,7 @@ namespace Olstakh.CodeAnalysisMonitor;
 
 /// <summary>
 /// Manages an ETW trace session that listens for Roslyn Code Analysis events.
-/// Supports live output, filtering, and summary aggregation.
+/// Delegates event processing to registered <see cref="ICaptureHandler"/> instances.
 /// </summary>
 internal sealed class MonitorSession : IDisposable
 {
@@ -12,20 +12,15 @@ internal sealed class MonitorSession : IDisposable
     private const string SessionName = "CodeAnalysisMonitor";
 
     private readonly TraceEventSession _session;
-    private readonly EventFilter _filter;
-    private readonly EventAggregator _aggregator;
-    private readonly bool _live;
-    private readonly IReadOnlySet<CaptureEventKind> _captureKinds;
+#pragma warning disable CA1859 // Prefer IReadOnlyList for immutability per coding guidelines
+    private readonly IReadOnlyList<ICaptureHandler> _activeHandlers;
+#pragma warning restore CA1859
 
     public MonitorSession(
-        bool live,
-        EventFilter filter,
+        IEnumerable<ICaptureHandler> handlers,
         IReadOnlySet<CaptureEventKind> captureKinds)
     {
-        _live = live;
-        _filter = filter;
-        _captureKinds = captureKinds;
-        _aggregator = new EventAggregator();
+        _activeHandlers = handlers.Where(h => captureKinds.Contains(h.Kind)).ToList();
         _session = new TraceEventSession(SessionName);
     }
 
@@ -35,7 +30,11 @@ internal sealed class MonitorSession : IDisposable
     /// <param name="cancellationToken">Token to signal graceful shutdown (e.g., Ctrl+C).</param>
     public void Run(CancellationToken cancellationToken)
     {
-        RegisterCallbacks();
+        foreach (var handler in _activeHandlers)
+        {
+            handler.Register(_session.Source.Dynamic, ProviderName);
+        }
+
         _session.EnableProvider(ProviderName);
 
         // Process() blocks until StopProcessing() is called, but it only checks
@@ -54,68 +53,27 @@ internal sealed class MonitorSession : IDisposable
     }
 
     /// <summary>
-    /// Prints the aggregated summary of all captured events to the console.
+    /// Prints the aggregated summary from all active handlers to the console.
     /// </summary>
 #pragma warning disable CA1303 // CLI tool does not need localized string resources
     public void PrintSummary()
     {
-        var summary = _aggregator.GetSummary();
-
         Console.WriteLine();
-        Console.WriteLine($"=== Summary ({summary.Count} unique entries) ===");
+        Console.WriteLine("=== Summary ===");
 
-        if (summary.Count == 0)
+        if (_activeHandlers.Count == 0)
         {
-            Console.WriteLine("  (no events were captured)");
+            Console.WriteLine("  (no handlers were active)");
             return;
         }
 
-        foreach (var entry in summary)
+        foreach (var handler in _activeHandlers)
         {
-            Console.WriteLine(
-                $"  {entry.Key}: {entry.TotalDuration.TotalMilliseconds:N0}ms total, {entry.Count} invocation(s)");
+            handler.WriteSummary(Console.Out);
+            Console.WriteLine();
         }
     }
 #pragma warning restore CA1303
-
-    /// <summary>
-    /// Registers ETW event callbacks for the requested capture event kinds.
-    /// </summary>
-    private void RegisterCallbacks()
-    {
-        if (_captureKinds.Contains(CaptureEventKind.SingleGeneratorRunTime))
-        {
-            RegisterSingleGeneratorRunTimeCallback();
-        }
-    }
-
-    private void RegisterSingleGeneratorRunTimeCallback()
-    {
-        _session.Source.Dynamic.AddCallbackForProviderEvent(
-            ProviderName,
-            "SingleGeneratorRunTime/Stop",
-            traceEvent =>
-            {
-                if (!_filter.Matches(name => traceEvent.PayloadByName(name)))
-                {
-                    return;
-                }
-
-                var generatorName = (string)traceEvent.PayloadByName("generatorName");
-                var elapsedTicks = (long)traceEvent.PayloadByName("elapsedTicks");
-                var assemblyPath = (string)traceEvent.PayloadByName("assemblyPath");
-
-                _aggregator.Record(generatorName, elapsedTicks);
-
-                if (_live)
-                {
-                    Console.WriteLine(
-                        $"[{traceEvent.TimeStamp:HH:mm:ss.fff}] {generatorName}: " +
-                        $"{TimeSpan.FromTicks(elapsedTicks).TotalMilliseconds:N0}ms " +
-                        $"(Assembly: {assemblyPath})");
-                }
-            });
-    }
 
     /// <inheritdoc />
     public void Dispose()

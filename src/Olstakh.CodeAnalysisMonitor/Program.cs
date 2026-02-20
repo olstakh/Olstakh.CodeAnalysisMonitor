@@ -1,5 +1,6 @@
 using System.CommandLine;
 using System.Security.Principal;
+using Microsoft.Extensions.DependencyInjection;
 using Olstakh.CodeAnalysisMonitor;
 
 var liveOption = new Option<bool>(
@@ -53,6 +54,10 @@ rootCommand.SetHandler(
 
         var captureKinds = capture.ToHashSet();
 
+        using var serviceProvider = new ServiceCollection()
+            .AddCodeAnalysisMonitor(eventFilter, liveOutput: live)
+            .BuildServiceProvider();
+
         using var cts = new CancellationTokenSource();
         Console.CancelKeyPress += (_, e) =>
         {
@@ -75,7 +80,9 @@ rootCommand.SetHandler(
         Console.WriteLine($"Capturing: {string.Join(", ", capture)}");
         Console.WriteLine();
 
-        using var session = new MonitorSession(live, eventFilter, captureKinds);
+        using var session = new MonitorSession(
+            serviceProvider.GetServices<ICaptureHandler>(),
+            captureKinds);
         session.Run(cts.Token);
         session.PrintSummary();
     },
