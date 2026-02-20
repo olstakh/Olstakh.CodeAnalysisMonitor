@@ -1,0 +1,12 @@
+{
+    "ProjectDependencies": [],
+    "PackageDependencies": [
+        {
+            "description": "Use XUnit, instead of MSTest, unless it's for in-cluster runner service",
+            "Policy": "forbidden",
+            "from": "*",
+            "to": "MSTest.*",
+            "exceptions": []
+        }        
+    ]
+}
