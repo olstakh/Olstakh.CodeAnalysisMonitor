@@ -35,13 +35,22 @@ internal sealed class MonitorSession : IDisposable
     /// <param name="cancellationToken">Token to signal graceful shutdown (e.g., Ctrl+C).</param>
     public void Run(CancellationToken cancellationToken)
     {
-        cancellationToken.Register(() => _session.Source.StopProcessing());
-
         RegisterCallbacks();
         _session.EnableProvider(ProviderName);
 
-        // This blocks until StopProcessing() is called
-        _session.Source.Process();
+        // Process() blocks until StopProcessing() is called, but it only checks
+        // the stop flag when an event arrives. Run it on a background thread so
+        // we can respond to Ctrl+C immediately by disposing the session, which
+        // unblocks Process() regardless of event flow.
+        var processingTask = Task.Run(() => _session.Source.Process(), CancellationToken.None);
+
+        cancellationToken.WaitHandle.WaitOne();
+
+        _session.Source.StopProcessing();
+        _session.Stop();
+
+        // Give Process() a moment to finish cleanly after being stopped.
+        processingTask.Wait(TimeSpan.FromSeconds(3), CancellationToken.None);
     }
 
     /// <summary>
