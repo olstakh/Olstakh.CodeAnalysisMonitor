@@ -6,6 +6,7 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>ca-monitor</ToolCommandName>
     <PackageDescription>Monitors Roslyn Code Analysis ETW events (source generators, analyzers, etc.) in real-time.</PackageDescription>
+    <PackageOutputPath>$(RepoRoot)\artifacts</PackageOutputPath>
   </PropertyGroup>
 
   <ItemGroup>
