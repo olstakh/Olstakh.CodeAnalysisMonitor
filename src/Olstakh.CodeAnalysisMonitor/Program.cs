@@ -4,7 +4,7 @@ using Olstakh.CodeAnalysisMonitor.Etw;
 using Olstakh.CodeAnalysisMonitor.Services;
 using Spectre.Console;
 
-var topOption = new Option<int>("--top", "Maximum number of generators to display") { DefaultValueFactory = _ => 50, Recursive = true };
+var topOption = new Option<int>("--top") { Description = "Maximum number of generators to display", DefaultValueFactory = _ => 50, Recursive = true };
 
 var generatorCommand = new Command("generator", "Monitor source generator performance");
 generatorCommand.SetAction(HandleGeneratorCommand);
