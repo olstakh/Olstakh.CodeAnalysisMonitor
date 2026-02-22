@@ -1,3 +1,4 @@
+using System.Runtime.Versioning;
 using Microsoft.Diagnostics.Tracing;
 using Microsoft.Diagnostics.Tracing.Session;
 using Olstakh.CodeAnalysisMonitor.Services;
@@ -5,6 +6,7 @@ using Olstakh.CodeAnalysisMonitor.Services;
 namespace Olstakh.CodeAnalysisMonitor.Etw;
 
 /// <inheritdoc />
+[SupportedOSPlatform("windows")]
 internal sealed class CodeAnalysisEtwListener : ICodeAnalysisEtwListener
 {
     /// <summary>
@@ -63,7 +65,7 @@ internal sealed class CodeAnalysisEtwListener : ICodeAnalysisEtwListener
     }
 
     /// <inheritdoc />
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
         if (_disposed)
         {
@@ -72,6 +74,12 @@ internal sealed class CodeAnalysisEtwListener : ICodeAnalysisEtwListener
 
         _disposed = true;
         _session.Stop();
+
+        if (_processingTask is not null)
+        {
+            await _processingTask.ConfigureAwait(false);
+        }
+
         _session.Dispose();
     }
 }

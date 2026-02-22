@@ -1,28 +1,51 @@
 using System.CommandLine;
-using System.CommandLine.Invocation;
 using Olstakh.CodeAnalysisMonitor.Commands;
+using Olstakh.CodeAnalysisMonitor.Etw;
+using Olstakh.CodeAnalysisMonitor.Services;
+using Spectre.Console;
 
-var topOption = new Option<int>("--top", () => 50, "Maximum number of generators to display");
+if (!OperatingSystem.IsWindows())
+{
+    await Console.Error.WriteLineAsync("This tool requires Windows (ETW is a Windows-only technology).");
+    return 1;
+}
+
+var topOption = new Option<int>("--top") { Description = "Maximum number of generators to display", DefaultValueFactory = _ => 50, Recursive = true };
 
 var generatorCommand = new Command("generator", "Monitor source generator performance");
-generatorCommand.SetHandler(HandleGeneratorCommand);
+generatorCommand.SetAction(HandleGeneratorCommand);
 
 var rootCommand = new RootCommand(
     "Code Analysis Monitor - monitors Roslyn Code Analysis ETW events " +
     "(source generators, analyzers, etc.) from Visual Studio in real-time.")
 {
+    topOption,
     generatorCommand,
 };
 
 // Default behavior: when no subcommand is specified, run the generator monitor
-rootCommand.AddGlobalOption(topOption);
-rootCommand.SetHandler(HandleGeneratorCommand);
+rootCommand.SetAction(HandleGeneratorCommand);
 
-return await rootCommand.InvokeAsync(args);
+return await rootCommand.Parse(args).InvokeAsync();
 
-async Task HandleGeneratorCommand(InvocationContext context)
+async Task<int> HandleGeneratorCommand(ParseResult parseResult, CancellationToken ct)
 {
-    var top = context.ParseResult.GetValueForOption(topOption) is > 0 and var t ? t : 50;
-    var ct = context.GetCancellationToken();
-    context.ExitCode = await GeneratorCommandHandler.ExecuteAsync(top, ct);
+    if (!OperatingSystem.IsWindows())
+    {
+        return 1;
+    }
+
+    var top = parseResult.GetValue(topOption) is > 0 and var t ? t : 50;
+
+    var aggregator = new GeneratorStatsAggregator();
+    await using var listener = new CodeAnalysisEtwListener(aggregator);
+
+    var handler = new GeneratorCommandHandler(
+        aggregator,
+        listener,
+        AnsiConsole.Console,
+        new ConsoleKeyboardInput(),
+        new WindowsEnvironmentContext());
+
+    return await handler.ExecuteAsync(top, ct);
 }

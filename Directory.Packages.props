@@ -5,11 +5,11 @@
     <DisableTransitiveProjectReferences>true</DisableTransitiveProjectReferences>
   </PropertyGroup>
   <ItemGroup Condition="'$(MSBuildProjectExtension)' == '.csproj'">
-    <GlobalPackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="10.0.100">
+    <GlobalPackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="10.0.103">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </GlobalPackageReference>
-    <GlobalPackageReference Include="Meziantou.Analyzer" Version="2.0.302">
+    <GlobalPackageReference Include="Meziantou.Analyzer" Version="3.0.12">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
     </GlobalPackageReference>
@@ -17,15 +17,16 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
     </GlobalPackageReference>
-    <GlobalPackageReference Include="ReferenceProtector" Version="1.3.2">
+    <GlobalPackageReference Include="ReferenceProtector" Version="1.3.6">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
     </GlobalPackageReference>
   </ItemGroup>
   <ItemGroup>
     <PackageVersion Include="Microsoft.Diagnostics.Tracing.TraceEvent" Version="3.1.17" />
-    <PackageVersion Include="Spectre.Console" Version="0.49.1" />
-    <PackageVersion Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
+    <PackageVersion Include="Spectre.Console" Version="0.54.0" />
+    <PackageVersion Include="Spectre.Console.Testing" Version="0.54.0" />
+    <PackageVersion Include="System.CommandLine" Version="2.0.3" />
     <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
@@ -39,11 +40,11 @@
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.3" />
     <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.3" />
     <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.3.0" />
-    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="1.1.1" />
+    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.103" />
     <PackageVersion Include="Microsoft.SourceLink.AzureDevOpsServer" Version="1.1.1" />
     <PackageVersion Include="Moq" Version="4.20.72" />
     <PackageVersion Include="Neovolve.Logging.Xunit.v3" Version="7.2.0" />
-    <PackageVersion Include="Nerdbank.GitVersioning" Version="3.5.109" />
+    <PackageVersion Include="Nerdbank.GitVersioning" Version="3.9.50" />
     <PackageVersion Include="xunit.v3.mtp-v2" Version="3.2.2" />
   </ItemGroup>
 </Project>

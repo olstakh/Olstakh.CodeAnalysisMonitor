@@ -1,3 +1,4 @@
-using System.Runtime.Versioning;
+using System.Runtime.CompilerServices;
 
-[assembly: SupportedOSPlatform("windows")]
+[assembly: InternalsVisibleTo("Olstakh.CodeAnalysisMonitor.Tests")]
+[assembly: InternalsVisibleTo("DynamicProxyGenAssembly2")] // Moq

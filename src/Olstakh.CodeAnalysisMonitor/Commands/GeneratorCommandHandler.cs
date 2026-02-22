@@ -1,4 +1,3 @@
-using System.Security.Principal;
 using Olstakh.CodeAnalysisMonitor.Etw;
 using Olstakh.CodeAnalysisMonitor.Rendering;
 using Olstakh.CodeAnalysisMonitor.Services;
@@ -9,37 +8,55 @@ namespace Olstakh.CodeAnalysisMonitor.Commands;
 /// <summary>
 /// Handles the "generator" command: captures ETW events and renders a live performance table.
 /// </summary>
-internal static class GeneratorCommandHandler
+internal sealed class GeneratorCommandHandler
 {
     private const int RefreshIntervalMs = 100;
     private const int DefaultSortColumn = 5; // Total Duration
+
+    private readonly IGeneratorStatsAggregator _aggregator;
+    private readonly ICodeAnalysisEtwListener _listener;
+    private readonly IAnsiConsole _console;
+    private readonly IKeyboardInput _keyboard;
+    private readonly IEnvironmentContext _environment;
+
+    public GeneratorCommandHandler(
+        IGeneratorStatsAggregator aggregator,
+        ICodeAnalysisEtwListener listener,
+        IAnsiConsole console,
+        IKeyboardInput keyboard,
+        IEnvironmentContext environment)
+    {
+        _aggregator = aggregator;
+        _listener = listener;
+        _console = console;
+        _keyboard = keyboard;
+        _environment = environment;
+    }
 
     /// <summary>
     /// Runs the generator monitoring loop.
     /// </summary>
     /// <returns>Exit code: 0 on success, 1 on error.</returns>
-    public static async Task<int> ExecuteAsync(int top, CancellationToken cancellationToken)
+    public async Task<int> ExecuteAsync(int top, CancellationToken cancellationToken)
     {
-        if (!IsRunningAsAdministrator())
+        if (!_environment.IsRunningAsAdministrator)
         {
-            AnsiConsole.MarkupLine(
+            _console.MarkupLine(
                 "[red bold]Error:[/] This tool requires [bold]administrator privileges[/] to capture ETW events.");
-            AnsiConsole.MarkupLine("[dim]Please re-run from an elevated terminal.[/]");
+            _console.MarkupLine("[dim]Please re-run from an elevated terminal.[/]");
             return 1;
         }
 
-        var aggregator = new GeneratorStatsAggregator();
-        using var listener = new CodeAnalysisEtwListener(aggregator);
-        listener.Start();
+        _listener.Start();
 
         var sortColumn = DefaultSortColumn;
         var ascending = false;
 
-        AnsiConsole.Clear();
+        _console.Clear();
 
         var initialTable = GeneratorTableBuilder.Build([], sortColumn, ascending, top);
 
-        await AnsiConsole.Live(initialTable)
+        await _console.Live(initialTable)
             .AutoClear(true)
             .Overflow(VerticalOverflow.Ellipsis)
             .StartAsync(async ctx =>
@@ -48,7 +65,7 @@ internal static class GeneratorCommandHandler
                 {
                     ProcessKeyboardInput(ref sortColumn, ref ascending);
 
-                    var snapshot = aggregator.GetSnapshot();
+                    var snapshot = _aggregator.GetSnapshot();
                     var table = GeneratorTableBuilder.Build(snapshot, sortColumn, ascending, top);
                     ctx.UpdateTarget(table);
 
@@ -66,11 +83,11 @@ internal static class GeneratorCommandHandler
         return 0;
     }
 
-    private static void ProcessKeyboardInput(ref int sortColumn, ref bool ascending)
+    private void ProcessKeyboardInput(ref int sortColumn, ref bool ascending)
     {
-        while (Console.KeyAvailable)
+        while (_keyboard.KeyAvailable)
         {
-            var key = Console.ReadKey(intercept: true);
+            var key = _keyboard.ReadKey();
 
             if (key.KeyChar is < '1' or > '5')
             {
@@ -89,12 +106,5 @@ internal static class GeneratorCommandHandler
                 ascending = false;
             }
         }
-    }
-
-    private static bool IsRunningAsAdministrator()
-    {
-        using var identity = WindowsIdentity.GetCurrent();
-        var principal = new WindowsPrincipal(identity);
-        return principal.IsInRole(WindowsBuiltInRole.Administrator);
     }
 }

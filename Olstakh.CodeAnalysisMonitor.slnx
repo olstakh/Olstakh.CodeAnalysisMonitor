@@ -2,4 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/Olstakh.CodeAnalysisMonitor/Olstakh.CodeAnalysisMonitor.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Olstakh.CodeAnalysisMonitor.Tests/Olstakh.CodeAnalysisMonitor.Tests.csproj" />
+  </Folder>
 </Solution>
