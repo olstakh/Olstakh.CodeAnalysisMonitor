@@ -1,32 +1,30 @@
 using System.CommandLine;
-using System.CommandLine.Invocation;
 using Olstakh.CodeAnalysisMonitor.Commands;
 using Olstakh.CodeAnalysisMonitor.Etw;
 using Olstakh.CodeAnalysisMonitor.Services;
 using Spectre.Console;
 
-var topOption = new Option<int>("--top", () => 50, "Maximum number of generators to display");
+var topOption = new Option<int>("--top", "Maximum number of generators to display") { DefaultValueFactory = _ => 50, Recursive = true };
 
 var generatorCommand = new Command("generator", "Monitor source generator performance");
-generatorCommand.SetHandler(HandleGeneratorCommand);
+generatorCommand.SetAction(HandleGeneratorCommand);
 
 var rootCommand = new RootCommand(
     "Code Analysis Monitor - monitors Roslyn Code Analysis ETW events " +
     "(source generators, analyzers, etc.) from Visual Studio in real-time.")
 {
+    topOption,
     generatorCommand,
 };
 
 // Default behavior: when no subcommand is specified, run the generator monitor
-rootCommand.AddGlobalOption(topOption);
-rootCommand.SetHandler(HandleGeneratorCommand);
+rootCommand.SetAction(HandleGeneratorCommand);
 
-return await rootCommand.InvokeAsync(args);
+return await rootCommand.Parse(args).InvokeAsync();
 
-async Task HandleGeneratorCommand(InvocationContext context)
+async Task<int> HandleGeneratorCommand(ParseResult parseResult, CancellationToken ct)
 {
-    var top = context.ParseResult.GetValueForOption(topOption) is > 0 and var t ? t : 50;
-    var ct = context.GetCancellationToken();
+    var top = parseResult.GetValue(topOption) is > 0 and var t ? t : 50;
 
     var aggregator = new GeneratorStatsAggregator();
     await using var listener = new CodeAnalysisEtwListener(aggregator);
@@ -38,5 +36,5 @@ async Task HandleGeneratorCommand(InvocationContext context)
         new ConsoleKeyboardInput(),
         new WindowsEnvironmentContext());
 
-    context.ExitCode = await handler.ExecuteAsync(top, ct);
+    return await handler.ExecuteAsync(top, ct);
 }
