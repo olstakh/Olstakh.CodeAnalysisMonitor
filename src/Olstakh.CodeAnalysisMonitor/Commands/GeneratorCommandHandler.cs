@@ -35,6 +35,8 @@ internal static class GeneratorCommandHandler
         var sortColumn = DefaultSortColumn;
         var ascending = false;
 
+        AnsiConsole.Clear();
+
         var initialTable = GeneratorTableBuilder.Build([], sortColumn, ascending, top);
 
         await AnsiConsole.Live(initialTable)

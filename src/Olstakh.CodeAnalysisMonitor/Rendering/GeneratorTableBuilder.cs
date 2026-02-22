@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using Olstakh.CodeAnalysisMonitor.Models;
 using Spectre.Console;
 using Spectre.Console.Rendering;
@@ -10,6 +11,11 @@ namespace Olstakh.CodeAnalysisMonitor.Rendering;
 /// </summary>
 internal static class GeneratorTableBuilder
 {
+    private static readonly bool SupportsUnicode =
+        Console.OutputEncoding.CodePage == Encoding.UTF8.CodePage;
+
+    private static readonly string AscendingIndicator = SupportsUnicode ? " ▲" : " ^";
+    private static readonly string DescendingIndicator = SupportsUnicode ? " ▼" : " v";
     private static readonly string[] ColumnHeaders =
     [
         "Generator",
@@ -46,7 +52,7 @@ internal static class GeneratorTableBuilder
 
             if (i + 1 == sortColumn)
             {
-                header += ascending ? " ▲" : " ▼";
+                header += ascending ? AscendingIndicator : DescendingIndicator;
             }
 
             var column = new TableColumn($"[bold]{header}[/]");
