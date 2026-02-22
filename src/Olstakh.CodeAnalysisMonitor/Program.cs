@@ -1,6 +1,9 @@
 using System.CommandLine;
 using System.CommandLine.Invocation;
 using Olstakh.CodeAnalysisMonitor.Commands;
+using Olstakh.CodeAnalysisMonitor.Etw;
+using Olstakh.CodeAnalysisMonitor.Services;
+using Spectre.Console;
 
 var topOption = new Option<int>("--top", () => 50, "Maximum number of generators to display");
 
@@ -24,5 +27,16 @@ async Task HandleGeneratorCommand(InvocationContext context)
 {
     var top = context.ParseResult.GetValueForOption(topOption) is > 0 and var t ? t : 50;
     var ct = context.GetCancellationToken();
-    context.ExitCode = await GeneratorCommandHandler.ExecuteAsync(top, ct);
+
+    var aggregator = new GeneratorStatsAggregator();
+    await using var listener = new CodeAnalysisEtwListener(aggregator);
+
+    var handler = new GeneratorCommandHandler(
+        aggregator,
+        listener,
+        AnsiConsole.Console,
+        new ConsoleKeyboardInput(),
+        new WindowsEnvironmentContext());
+
+    context.ExitCode = await handler.ExecuteAsync(top, ct);
 }
