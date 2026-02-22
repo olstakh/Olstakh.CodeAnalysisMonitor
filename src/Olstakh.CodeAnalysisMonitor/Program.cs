@@ -4,6 +4,12 @@ using Olstakh.CodeAnalysisMonitor.Etw;
 using Olstakh.CodeAnalysisMonitor.Services;
 using Spectre.Console;
 
+if (!OperatingSystem.IsWindows())
+{
+    await Console.Error.WriteLineAsync("This tool requires Windows (ETW is a Windows-only technology).");
+    return 1;
+}
+
 var topOption = new Option<int>("--top") { Description = "Maximum number of generators to display", DefaultValueFactory = _ => 50, Recursive = true };
 
 var generatorCommand = new Command("generator", "Monitor source generator performance");
@@ -24,6 +30,11 @@ return await rootCommand.Parse(args).InvokeAsync();
 
 async Task<int> HandleGeneratorCommand(ParseResult parseResult, CancellationToken ct)
 {
+    if (!OperatingSystem.IsWindows())
+    {
+        return 1;
+    }
+
     var top = parseResult.GetValue(topOption) is > 0 and var t ? t : 50;
 
     var aggregator = new GeneratorStatsAggregator();

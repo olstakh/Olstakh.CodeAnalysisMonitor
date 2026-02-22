@@ -1,3 +1,4 @@
+using System.Runtime.Versioning;
 using System.Security.Principal;
 
 namespace Olstakh.CodeAnalysisMonitor.Services;
@@ -5,6 +6,7 @@ namespace Olstakh.CodeAnalysisMonitor.Services;
 /// <summary>
 /// Provides real environment context using system APIs.
 /// </summary>
+[SupportedOSPlatform("windows")]
 internal sealed class WindowsEnvironmentContext : IEnvironmentContext
 {
     /// <inheritdoc />
