@@ -21,7 +21,7 @@ public sealed class GeneratorCommandHandlerTests
             console: console,
             environment: environment.Object);
 
-        var exitCode = await handler.ExecuteAsync(top: 50, CancellationToken.None);
+        var exitCode = await handler.ExecuteAsync(top: 50, TestContext.Current.CancellationToken);
 
         Assert.Equal(1, exitCode);
         Assert.Contains("administrator privileges", console.Output, StringComparison.Ordinal);

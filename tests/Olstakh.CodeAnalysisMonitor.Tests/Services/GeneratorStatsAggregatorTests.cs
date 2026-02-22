@@ -119,12 +119,13 @@ public sealed class GeneratorStatsAggregatorTests
                 {
                     _sut.RecordInvocation("Gen.Concurrent", 100);
                 }
-            }));
+            }, TestContext.Current.CancellationToken));
 
         await Task.WhenAll(tasks);
 
         var result = _sut.GetSnapshot();
         var stat = Assert.Single(result);
         Assert.Equal(threadCount * invocationsPerThread, stat.InvocationCount);
+        Assert.Equal(TimeSpan.FromTicks(threadCount * invocationsPerThread * 100), stat.TotalDuration);
     }
 }
