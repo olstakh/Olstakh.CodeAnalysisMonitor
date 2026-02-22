@@ -9,8 +9,14 @@ internal sealed class CodeAnalysisEtwListener : ICodeAnalysisEtwListener
 {
     /// <summary>
     /// ETW provider name for Roslyn's CodeAnalysisEventSource.
+    /// The "-General" suffix is how the EventSource manifest registers the provider.
     /// </summary>
-    private const string ProviderName = "Microsoft-CodeAnalysis";
+    private const string ProviderName = "Microsoft-CodeAnalysis-General";
+
+    /// <summary>
+    /// ETW event name for the single generator run time stop event.
+    /// </summary>
+    private const string SingleGeneratorStopEventName = "SingleGeneratorRunTime/Stop";
 
     /// <summary>
     /// ETW session name. Must be unique on the system.
@@ -21,11 +27,6 @@ internal sealed class CodeAnalysisEtwListener : ICodeAnalysisEtwListener
     /// EventSource keyword for Performance events (0b001).
     /// </summary>
     private const ulong PerformanceKeyword = 0x1;
-
-    /// <summary>
-    /// Event ID for StopSingleGeneratorRunTime (event 4).
-    /// </summary>
-    private const int StopSingleGeneratorRunTimeEventId = 4;
 
     private readonly IGeneratorStatsAggregator _aggregator;
     private readonly TraceEventSession _session;
@@ -44,19 +45,18 @@ internal sealed class CodeAnalysisEtwListener : ICodeAnalysisEtwListener
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         _session.EnableProvider(ProviderName, TraceEventLevel.Verbose, PerformanceKeyword);
-        _session.Source.Dynamic.All += OnEvent;
+
+        _session.Source.Dynamic.AddCallbackForProviderEvent(
+            ProviderName,
+            SingleGeneratorStopEventName,
+            OnSingleGeneratorStop);
 
         // Process() blocks until the session is stopped, so run it on a background thread
         _processingTask = Task.Run(() => _session.Source.Process());
     }
 
-    private void OnEvent(TraceEvent data)
+    private void OnSingleGeneratorStop(TraceEvent data)
     {
-        if ((int)data.ID != StopSingleGeneratorRunTimeEventId)
-        {
-            return;
-        }
-
         var generatorName = (string)data.PayloadByName("generatorName");
         var elapsedTicks = (long)data.PayloadByName("elapsedTicks");
         _aggregator.RecordInvocation(generatorName, elapsedTicks);
