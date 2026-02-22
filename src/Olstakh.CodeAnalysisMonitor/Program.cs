@@ -1,8 +1,11 @@
 using System.CommandLine;
+using System.Text;
 using Olstakh.CodeAnalysisMonitor.Commands;
 using Olstakh.CodeAnalysisMonitor.Etw;
 using Olstakh.CodeAnalysisMonitor.Services;
 using Spectre.Console;
+
+Console.OutputEncoding = Encoding.UTF8;
 
 if (!OperatingSystem.IsWindows())
 {
