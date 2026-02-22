@@ -21,8 +21,8 @@ internal static class GeneratorTableBuilder
         "Generator",
         "Invocations",
         "Avg Duration",
-        "Total Duration",
         "P90 Duration",
+        "Total Duration",
     ];
 
     /// <summary>
@@ -71,8 +71,8 @@ internal static class GeneratorTableBuilder
                 Markup.Escape(stat.Name),
                 stat.InvocationCount.ToString(CultureInfo.InvariantCulture),
                 FormatDuration(stat.AverageDuration),
-                FormatDuration(stat.TotalDuration),
-                FormatDuration(stat.P90Duration));
+                FormatDuration(stat.P90Duration),
+                FormatDuration(stat.TotalDuration));
         }
 
         if (stats.Count == 0)
@@ -105,11 +105,11 @@ internal static class GeneratorTableBuilder
                 ? stats.OrderBy(static s => s.AverageDuration)
                 : stats.OrderByDescending(static s => s.AverageDuration),
             4 => ascending
-                ? stats.OrderBy(static s => s.TotalDuration)
-                : stats.OrderByDescending(static s => s.TotalDuration),
-            5 => ascending
                 ? stats.OrderBy(static s => s.P90Duration)
                 : stats.OrderByDescending(static s => s.P90Duration),
+            5 => ascending
+                ? stats.OrderBy(static s => s.TotalDuration)
+                : stats.OrderByDescending(static s => s.TotalDuration),
             _ => stats.OrderByDescending(static s => s.TotalDuration),
         };
     }

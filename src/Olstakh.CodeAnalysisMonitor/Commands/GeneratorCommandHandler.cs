@@ -12,7 +12,7 @@ namespace Olstakh.CodeAnalysisMonitor.Commands;
 internal static class GeneratorCommandHandler
 {
     private const int RefreshIntervalMs = 100;
-    private const int DefaultSortColumn = 4; // Total Duration
+    private const int DefaultSortColumn = 5; // Total Duration
 
     /// <summary>
     /// Runs the generator monitoring loop.
