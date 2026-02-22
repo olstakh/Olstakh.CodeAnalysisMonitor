@@ -29,7 +29,7 @@ internal static class GeneratorCommandHandler
         }
 
         var aggregator = new GeneratorStatsAggregator();
-        using var listener = new CodeAnalysisEtwListener(aggregator);
+        await using var listener = new CodeAnalysisEtwListener(aggregator);
         listener.Start();
 
         var sortColumn = DefaultSortColumn;

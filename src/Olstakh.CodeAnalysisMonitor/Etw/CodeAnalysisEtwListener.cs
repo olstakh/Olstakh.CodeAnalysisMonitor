@@ -63,7 +63,7 @@ internal sealed class CodeAnalysisEtwListener : ICodeAnalysisEtwListener
     }
 
     /// <inheritdoc />
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
         if (_disposed)
         {
@@ -72,6 +72,12 @@ internal sealed class CodeAnalysisEtwListener : ICodeAnalysisEtwListener
 
         _disposed = true;
         _session.Stop();
+
+        if (_processingTask is not null)
+        {
+            await _processingTask.ConfigureAwait(false);
+        }
+
         _session.Dispose();
     }
 }
