@@ -8,7 +8,7 @@ using Xunit;
 
 namespace Olstakh.CodeAnalysisMonitor.Tests.Commands;
 
-public sealed class GeneratorCommandHandlerTests
+public sealed class CompilationCommandHandlerTests
 {
     [Fact]
     public async Task ExecuteAsync_WhenNotAdmin_ReturnsExitCode1AndShowsError()
@@ -29,19 +29,20 @@ public sealed class GeneratorCommandHandlerTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WithEvents_RendersGeneratorNamesInTable()
+    public async Task ExecuteAsync_WithEvents_RendersProjectNamesInTable()
     {
         using var console = new TestConsole();
         console.EmitAnsiSequences = false;
 
-        var aggregator = new GeneratorStatsAggregator();
-        aggregator.RecordInvocation("MyApp.Generators.FastGen", 5000);
-        aggregator.RecordInvocation("MyApp.Generators.SlowGen", 50000);
-        aggregator.RecordInvocation("MyApp.Generators.SlowGen", 70000);
+        var baseTime = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+        var aggregator = new CompilationStatsAggregator();
+        aggregator.RecordStart("MyApp.Core", baseTime);
+        aggregator.RecordStop("MyApp.Core", baseTime.AddSeconds(2));
+        aggregator.RecordStart("MyApp.Web", baseTime.AddSeconds(5));
+        aggregator.RecordStop("MyApp.Web", baseTime.AddSeconds(8));
 
         using var cts = new CancellationTokenSource();
 
-        // Keyboard: no keys pressed, then signal cancellation after first refresh
         var keyCallCount = 0;
         var keyboard = new Mock<IKeyboardInput>(MockBehavior.Strict);
         keyboard.Setup(k => k.KeyAvailable)
@@ -49,7 +50,6 @@ public sealed class GeneratorCommandHandlerTests
             {
                 if (keyCallCount++ > 0)
                 {
-                    // Cancel after the first render cycle
                     cts.Cancel();
                 }
 
@@ -57,7 +57,7 @@ public sealed class GeneratorCommandHandlerTests
             })
             .Verifiable();
 
-        var listener = new Mock<ICodeAnalysisEtwListener>(MockBehavior.Strict);
+        var listener = new Mock<ICompilationEtwListener>(MockBehavior.Strict);
         listener.Setup(l => l.Start()).Verifiable();
 
         var environment = new Mock<IEnvironmentContext>(MockBehavior.Strict);
@@ -73,22 +73,26 @@ public sealed class GeneratorCommandHandlerTests
         var exitCode = await handler.ExecuteAsync(top: 50, cts.Token);
 
         Assert.Equal(0, exitCode);
-        Assert.Contains("FastGen", console.Output, StringComparison.Ordinal);
-        Assert.Contains("SlowGen", console.Output, StringComparison.Ordinal);
+        Assert.Contains("MyApp.Core", console.Output, StringComparison.Ordinal);
+        Assert.Contains("MyApp.Web", console.Output, StringComparison.Ordinal);
         listener.Verify();
         environment.Verify();
     }
 
     [Fact]
-    public async Task ExecuteAsync_WithTopLimit_OnlyShowsTopNGenerators()
+    public async Task ExecuteAsync_WithTopLimit_OnlyShowsTopNProjects()
     {
         using var console = new TestConsole();
         console.EmitAnsiSequences = false;
 
-        var aggregator = new GeneratorStatsAggregator();
-        aggregator.RecordInvocation("Gen.Alpha", 1000);
-        aggregator.RecordInvocation("Gen.Beta", 5000);
-        aggregator.RecordInvocation("Gen.Gamma", 100);
+        var baseTime = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+        var aggregator = new CompilationStatsAggregator();
+        aggregator.RecordStart("Small", baseTime);
+        aggregator.RecordStop("Small", baseTime.AddMilliseconds(100));
+        aggregator.RecordStart("Big", baseTime.AddSeconds(1));
+        aggregator.RecordStop("Big", baseTime.AddSeconds(6));
+        aggregator.RecordStart("Medium", baseTime.AddSeconds(10));
+        aggregator.RecordStop("Medium", baseTime.AddSeconds(11));
 
         using var cts = new CancellationTokenSource();
 
@@ -106,7 +110,7 @@ public sealed class GeneratorCommandHandlerTests
             })
             .Verifiable();
 
-        var listener = new Mock<ICodeAnalysisEtwListener>(MockBehavior.Strict);
+        var listener = new Mock<ICompilationEtwListener>(MockBehavior.Strict);
         listener.Setup(l => l.Start()).Verifiable();
 
         var environment = new Mock<IEnvironmentContext>(MockBehavior.Strict);
@@ -124,11 +128,11 @@ public sealed class GeneratorCommandHandlerTests
 
         Assert.Equal(0, exitCode);
 
-        // Gen.Beta has the highest total (5000 ticks), so it should be present
-        Assert.Contains("Gen.Beta", console.Output, StringComparison.Ordinal);
-        // Gen.Alpha and Gen.Gamma should be excluded
-        Assert.DoesNotContain("Gen.Alpha", console.Output, StringComparison.Ordinal);
-        Assert.DoesNotContain("Gen.Gamma", console.Output, StringComparison.Ordinal);
+        // "Big" has the highest total (5s), so it should be present
+        Assert.Contains("Big", console.Output, StringComparison.Ordinal);
+        // Others should be excluded
+        Assert.DoesNotContain("Small", console.Output, StringComparison.Ordinal);
+        Assert.DoesNotContain("Medium", console.Output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -137,17 +141,11 @@ public sealed class GeneratorCommandHandlerTests
         using var console = new TestConsole();
         console.EmitAnsiSequences = false;
 
-        var aggregator = new GeneratorStatsAggregator();
-        // Gen.Many has more invocations but less total time
-        aggregator.RecordInvocation("Gen.Many", 100);
-        aggregator.RecordInvocation("Gen.Many", 100);
-        aggregator.RecordInvocation("Gen.Many", 100);
-        // Gen.Slow has fewer invocations but more total time
-        aggregator.RecordInvocation("Gen.Slow", 9000);
+        var aggregator = CreateFrequentVsSlowAggregator();
 
         using var cts = new CancellationTokenSource();
 
-        // Simulate pressing '2' (sort by invocation count) then no more keys
+        // Simulate pressing '2' (sort by count) then no more keys
         var keyPresses = new Queue<ConsoleKeyInfo>(
         [
             new ConsoleKeyInfo('2', ConsoleKey.D2, false, false, false),
@@ -170,7 +168,7 @@ public sealed class GeneratorCommandHandlerTests
             .Returns(keyPresses.Dequeue)
             .Verifiable();
 
-        var listener = new Mock<ICodeAnalysisEtwListener>(MockBehavior.Strict);
+        var listener = new Mock<ICompilationEtwListener>(MockBehavior.Strict);
         listener.Setup(l => l.Start()).Verifiable();
 
         var environment = new Mock<IEnvironmentContext>(MockBehavior.Strict);
@@ -187,24 +185,45 @@ public sealed class GeneratorCommandHandlerTests
 
         Assert.Equal(0, exitCode);
 
-        // Sorted by invocation count desc: Gen.Many (3) should appear before Gen.Slow (1)
-        var manyIndex = console.Output.IndexOf("Gen.Many", StringComparison.Ordinal);
-        var slowIndex = console.Output.IndexOf("Gen.Slow", StringComparison.Ordinal);
-        Assert.True(manyIndex < slowIndex, "Gen.Many should appear before Gen.Slow when sorted by invocation count descending");
+        // Sorted by count desc: Frequent (3) should appear before Slow (1)
+        var frequentIndex = console.Output.IndexOf("Frequent", StringComparison.Ordinal);
+        var slowIndex = console.Output.IndexOf("Slow", StringComparison.Ordinal);
+        Assert.True(frequentIndex < slowIndex, "Frequent should appear before Slow when sorted by count descending");
     }
 
-    private static GeneratorCommandHandler CreateHandler(
-        IGeneratorStatsAggregator? aggregator = null,
-        ICodeAnalysisEtwListener? listener = null,
+    private static CompilationCommandHandler CreateHandler(
+        ICompilationStatsAggregator? aggregator = null,
+        ICompilationEtwListener? listener = null,
         IAnsiConsole? console = null,
         IKeyboardInput? keyboard = null,
         IEnvironmentContext? environment = null)
     {
-        return new GeneratorCommandHandler(
-            aggregator ?? new GeneratorStatsAggregator(),
-            listener ?? Mock.Of<ICodeAnalysisEtwListener>(),
+        return new CompilationCommandHandler(
+            aggregator ?? new CompilationStatsAggregator(),
+            listener ?? Mock.Of<ICompilationEtwListener>(),
             console ?? throw new ArgumentNullException(nameof(console)),
             keyboard ?? Mock.Of<IKeyboardInput>(),
             environment ?? Mock.Of<IEnvironmentContext>(e => e.IsRunningAsAdministrator == true));
+    }
+
+    /// <summary>
+    /// Creates an aggregator with "Frequent" (3 compilations, 50ms each) and "Slow" (1 compilation, 10s).
+    /// </summary>
+    private static CompilationStatsAggregator CreateFrequentVsSlowAggregator()
+    {
+        var baseTime = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+        var aggregator = new CompilationStatsAggregator();
+
+        aggregator.RecordStart("Frequent", baseTime);
+        aggregator.RecordStop("Frequent", baseTime.AddMilliseconds(50));
+        aggregator.RecordStart("Frequent", baseTime.AddSeconds(1));
+        aggregator.RecordStop("Frequent", baseTime.AddSeconds(1).AddMilliseconds(50));
+        aggregator.RecordStart("Frequent", baseTime.AddSeconds(2));
+        aggregator.RecordStop("Frequent", baseTime.AddSeconds(2).AddMilliseconds(50));
+
+        aggregator.RecordStart("Slow", baseTime.AddSeconds(5));
+        aggregator.RecordStop("Slow", baseTime.AddSeconds(15));
+
+        return aggregator;
     }
 }

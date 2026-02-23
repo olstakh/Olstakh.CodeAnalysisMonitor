@@ -7,41 +7,36 @@ namespace Olstakh.CodeAnalysisMonitor.Etw;
 
 /// <inheritdoc />
 [SupportedOSPlatform("windows")]
-internal sealed class CodeAnalysisEtwListener : ICodeAnalysisEtwListener
+internal sealed class CompilationEtwListener : ICompilationEtwListener
 {
     /// <summary>
     /// ETW provider name for Roslyn's CodeAnalysisEventSource.
-    /// The "-General" suffix is how the EventSource manifest registers the provider.
+    /// Same provider as the generator listener — compilation events are in the same EventSource.
     /// </summary>
     private const string ProviderName = "Microsoft-CodeAnalysis-General";
 
     /// <summary>
-    /// ETW event name for the single generator run time stop event.
+    /// ETW event names for the server compilation start/stop pair (Task 4: Compilation).
     /// </summary>
-    private const string SingleGeneratorStopEventName = "SingleGeneratorRunTime/Stop";
-
-    /// <summary>
-    /// ETW event name for the generator exception event (event ID 5, no task).
-    /// </summary>
-    private const string GeneratorExceptionEventName = "GeneratorException";
+    private const string CompilationStartEventName = "Compilation/Start";
+    private const string CompilationStopEventName = "Compilation/Stop";
 
     /// <summary>
     /// ETW session name. Must be unique on the system.
     /// </summary>
-    private const string SessionName = "CodeAnalysisMonitor-Generators";
+    private const string SessionName = "CodeAnalysisMonitor-Compilations";
 
     /// <summary>
-    /// Keyword bitmask to enable all provider events, including those with no keyword
-    /// (e.g., GeneratorException) and performance events.
+    /// EventSource keyword for Performance events (0b001).
     /// </summary>
-    private const ulong AllKeywords = ulong.MaxValue;
+    private const ulong PerformanceKeyword = 0x1;
 
-    private readonly IGeneratorStatsAggregator _aggregator;
+    private readonly ICompilationStatsAggregator _aggregator;
     private readonly TraceEventSession _session;
     private Task? _processingTask;
     private bool _disposed;
 
-    public CodeAnalysisEtwListener(IGeneratorStatsAggregator aggregator)
+    public CompilationEtwListener(ICompilationStatsAggregator aggregator)
     {
         _aggregator = aggregator;
         _session = new TraceEventSession(SessionName);
@@ -52,33 +47,32 @@ internal sealed class CodeAnalysisEtwListener : ICodeAnalysisEtwListener
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        _session.EnableProvider(ProviderName, TraceEventLevel.Verbose, AllKeywords);
+        _session.EnableProvider(ProviderName, TraceEventLevel.Verbose, PerformanceKeyword);
 
         _session.Source.Dynamic.AddCallbackForProviderEvent(
             ProviderName,
-            SingleGeneratorStopEventName,
-            OnSingleGeneratorStop);
+            CompilationStartEventName,
+            OnCompilationStart);
 
         _session.Source.Dynamic.AddCallbackForProviderEvent(
             ProviderName,
-            GeneratorExceptionEventName,
-            OnGeneratorException);
+            CompilationStopEventName,
+            OnCompilationStop);
 
         // Process() blocks until the session is stopped, so run it on a background thread
         _processingTask = Task.Run(() => _session.Source.Process());
     }
 
-    private void OnSingleGeneratorStop(TraceEvent data)
+    private void OnCompilationStart(TraceEvent data)
     {
-        var generatorName = (string)data.PayloadByName("generatorName");
-        var elapsedTicks = (long)data.PayloadByName("elapsedTicks");
-        _aggregator.RecordInvocation(generatorName, elapsedTicks);
+        var name = (string)data.PayloadByName("name");
+        _aggregator.RecordStart(name, data.TimeStamp);
     }
 
-    private void OnGeneratorException(TraceEvent data)
+    private void OnCompilationStop(TraceEvent data)
     {
-        var generatorName = (string)data.PayloadByName("generatorName");
-        _aggregator.RecordException(generatorName);
+        var name = (string)data.PayloadByName("name");
+        _aggregator.RecordStop(name, data.TimeStamp);
     }
 
     /// <inheritdoc />

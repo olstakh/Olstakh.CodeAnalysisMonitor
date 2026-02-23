@@ -6,22 +6,44 @@ namespace Olstakh.CodeAnalysisMonitor.Services;
 /// <inheritdoc />
 internal sealed class GeneratorStatsAggregator : IGeneratorStatsAggregator
 {
-    private readonly ConcurrentDictionary<string, ConcurrentBag<long>> _invocations = [];
+    private readonly ConcurrentDictionary<string, GeneratorData> _generators = [];
 
     /// <inheritdoc />
     public void RecordInvocation(string generatorName, long elapsedTicks)
     {
-        var bag = _invocations.GetOrAdd(generatorName, static _ => []);
-        bag.Add(elapsedTicks);
+        var data = _generators.GetOrAdd(generatorName, static _ => new GeneratorData());
+        data.Durations.Add(elapsedTicks);
+    }
+
+    /// <inheritdoc />
+    public void RecordException(string generatorName)
+    {
+        var data = _generators.GetOrAdd(generatorName, static _ => new GeneratorData());
+        data.ExceptionCounts.Add(1);
     }
 
     /// <inheritdoc />
     public IReadOnlyList<GeneratorStats> GetSnapshot()
     {
-        return _invocations.Select(static kvp =>
+        return _generators.Select(static kvp =>
         {
-            var durations = kvp.Value.ToArray();
+            var data = kvp.Value;
+            var durations = data.Durations.ToArray();
             var count = durations.Length;
+            var exceptionCount = data.ExceptionCounts.Count;
+
+            if (count == 0)
+            {
+                return new GeneratorStats
+                {
+                    Name = kvp.Key,
+                    InvocationCount = 0,
+                    AverageDuration = TimeSpan.Zero,
+                    TotalDuration = TimeSpan.Zero,
+                    P90Duration = TimeSpan.Zero,
+                    ExceptionCount = exceptionCount,
+                };
+            }
 
             var totalTicks = 0L;
             foreach (var d in durations)
@@ -43,7 +65,14 @@ internal sealed class GeneratorStatsAggregator : IGeneratorStatsAggregator
                 AverageDuration = TimeSpan.FromTicks(avgTicks),
                 TotalDuration = TimeSpan.FromTicks(totalTicks),
                 P90Duration = TimeSpan.FromTicks(p90Ticks),
+                ExceptionCount = exceptionCount,
             };
         }).ToList();
+    }
+
+    private sealed class GeneratorData
+    {
+        public ConcurrentBag<long> Durations { get; } = [];
+        public ConcurrentBag<int> ExceptionCounts { get; } = [];
     }
 }

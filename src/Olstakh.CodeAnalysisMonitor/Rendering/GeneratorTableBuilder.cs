@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text;
 using Olstakh.CodeAnalysisMonitor.Models;
 using Spectre.Console;
 using Spectre.Console.Rendering;
@@ -11,12 +10,10 @@ namespace Olstakh.CodeAnalysisMonitor.Rendering;
 /// </summary>
 internal static class GeneratorTableBuilder
 {
-    private static readonly bool SupportsUnicode =
-        Console.OutputEncoding.CodePage == Encoding.UTF8.CodePage;
+    private const string AscendingIndicator = " ▲";
+    private const string DescendingIndicator = " ▼";
 
-    private static readonly string AscendingIndicator = SupportsUnicode ? " ▲" : " ^";
-    private static readonly string DescendingIndicator = SupportsUnicode ? " ▼" : " v";
-    private static readonly string[] ColumnHeaders =
+    private static readonly string[] BaseColumnHeaders =
     [
         "Generator",
         "Invocations",
@@ -25,8 +22,11 @@ internal static class GeneratorTableBuilder
         "Total Duration",
     ];
 
+    private const string ExceptionsColumnHeader = "Exceptions";
+
     /// <summary>
     /// Builds a renderable table from the given generator statistics.
+    /// The "Exceptions" column is shown only when at least one generator has exceptions.
     /// </summary>
     /// <param name="stats">Current statistics snapshot.</param>
     /// <param name="sortColumn">1-based column index to sort by.</param>
@@ -38,17 +38,29 @@ internal static class GeneratorTableBuilder
         bool ascending,
         int maxRows)
     {
-        var sorted = ApplySort(stats, sortColumn, ascending);
-        var displayed = sorted.Take(maxRows);
+        var showExceptions = stats.Any(static s => s.ExceptionCount > 0);
+        var columnHeaders = showExceptions
+            ? [.. BaseColumnHeaders, ExceptionsColumnHeader]
+            : BaseColumnHeaders;
+
+        var sortHint = showExceptions ? "1-6" : "1-5";
 
         var table = new Table()
             .Border(TableBorder.Rounded)
             .Title("[bold underline]Source Generator Performance[/]")
-            .Caption("[dim]Press [bold]1-5[/] to sort by column • [bold]Ctrl+C[/] to exit[/]");
+            .Caption($"[dim]Press [bold]{sortHint}[/] to sort by column • [bold]Ctrl+C[/] to exit[/]");
 
-        for (var i = 0; i < ColumnHeaders.Length; i++)
+        AddColumns(table, columnHeaders, sortColumn, ascending);
+        AddRows(table, stats, sortColumn, ascending, maxRows, showExceptions, columnHeaders.Length);
+
+        return table;
+    }
+
+    private static void AddColumns(Table table, string[] columnHeaders, int sortColumn, bool ascending)
+    {
+        for (var i = 0; i < columnHeaders.Length; i++)
         {
-            var header = ColumnHeaders[i];
+            var header = columnHeaders[i];
 
             if (i + 1 == sortColumn)
             {
@@ -64,28 +76,51 @@ internal static class GeneratorTableBuilder
 
             table.AddColumn(column);
         }
+    }
 
-        foreach (var stat in displayed)
+    private static void AddRows(
+        Table table,
+        IReadOnlyList<GeneratorStats> stats,
+        int sortColumn,
+        bool ascending,
+        int maxRows,
+        bool showExceptions,
+        int columnCount)
+    {
+        if (stats.Count == 0)
         {
-            table.AddRow(
+            var emptyRow = new string[columnCount];
+            emptyRow[0] = "[dim]Waiting for generator events…[/]";
+
+            for (var i = 1; i < columnCount; i++)
+            {
+                emptyRow[i] = string.Empty;
+            }
+
+            table.AddRow(emptyRow);
+            return;
+        }
+
+        var sorted = ApplySort(stats, sortColumn, ascending);
+
+        foreach (var stat in sorted.Take(maxRows))
+        {
+            var row = new List<string>
+            {
                 Markup.Escape(stat.Name),
                 stat.InvocationCount.ToString(CultureInfo.InvariantCulture),
                 FormatDuration(stat.AverageDuration),
                 FormatDuration(stat.P90Duration),
-                FormatDuration(stat.TotalDuration));
-        }
+                FormatDuration(stat.TotalDuration),
+            };
 
-        if (stats.Count == 0)
-        {
-            table.AddRow(
-                "[dim]Waiting for generator events…[/]",
-                string.Empty,
-                string.Empty,
-                string.Empty,
-                string.Empty);
-        }
+            if (showExceptions)
+            {
+                row.Add(FormatExceptionCount(stat.ExceptionCount));
+            }
 
-        return table;
+            table.AddRow(row.ToArray());
+        }
     }
 
     private static IEnumerable<GeneratorStats> ApplySort(
@@ -110,6 +145,9 @@ internal static class GeneratorTableBuilder
             5 => ascending
                 ? stats.OrderBy(static s => s.TotalDuration)
                 : stats.OrderByDescending(static s => s.TotalDuration),
+            6 => ascending
+                ? stats.OrderBy(static s => s.ExceptionCount)
+                : stats.OrderByDescending(static s => s.ExceptionCount),
             _ => stats.OrderByDescending(static s => s.TotalDuration),
         };
     }
@@ -122,5 +160,11 @@ internal static class GeneratorTableBuilder
             >= 0.001 => $"{ts.TotalMilliseconds:F2}ms",
             _ => $"{ts.TotalMicroseconds:F0}µs",
         };
+    }
+
+    private static string FormatExceptionCount(int count)
+    {
+        var text = count.ToString(CultureInfo.InvariantCulture);
+        return count > 0 ? $"[red bold]{text}[/]" : text;
     }
 }

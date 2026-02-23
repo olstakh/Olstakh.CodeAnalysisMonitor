@@ -15,6 +15,12 @@ internal interface IGeneratorStatsAggregator
     void RecordInvocation(string generatorName, long elapsedTicks);
 
     /// <summary>
+    /// Records that a generator threw an exception.
+    /// </summary>
+    /// <param name="generatorName">The fully qualified generator type name.</param>
+    void RecordException(string generatorName);
+
+    /// <summary>
     /// Returns an immutable snapshot of current statistics for all recorded generators.
     /// </summary>
     IReadOnlyList<GeneratorStats> GetSnapshot();
