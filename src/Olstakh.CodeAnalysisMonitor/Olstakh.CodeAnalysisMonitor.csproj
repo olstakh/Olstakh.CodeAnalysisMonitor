@@ -6,8 +6,13 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>ca-monitor</ToolCommandName>
     <PackageDescription>Monitors Roslyn Code Analysis ETW events (source generators, analyzers, etc.) in real-time.</PackageDescription>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageOutputPath>$(RepoRoot)\artifacts</PackageOutputPath>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Diagnostics.Tracing.TraceEvent" />
