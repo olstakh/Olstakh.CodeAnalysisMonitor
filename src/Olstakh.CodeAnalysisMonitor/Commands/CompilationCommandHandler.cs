@@ -65,7 +65,9 @@ internal sealed class CompilationCommandHandler
                 {
                     ProcessKeyboardInput(ref sortColumn, ref ascending);
 
-                    var snapshot = _aggregator.GetSnapshot();
+                    var snapshot = _aggregator.GetSnapshot()
+                        .Where(static s => !string.IsNullOrWhiteSpace(s.Name))
+                        .ToList();
                     var table = CompilationTableBuilder.Build(snapshot, sortColumn, ascending, top);
                     ctx.UpdateTarget(table);
 
