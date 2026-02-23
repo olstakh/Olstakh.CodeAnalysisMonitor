@@ -18,7 +18,7 @@ public sealed class GeneratorStatsAggregatorTests
     [Fact]
     public void GetSnapshot_AfterSingleInvocation_ReturnsCorrectStats()
     {
-        _sut.RecordInvocation("Gen.A", 1000);
+        _sut.RecordInvocation("Gen.A", 1000, DateTime.MinValue);
 
         var result = _sut.GetSnapshot();
 
@@ -33,8 +33,8 @@ public sealed class GeneratorStatsAggregatorTests
     [Fact]
     public void GetSnapshot_WithMultipleInvocations_ComputesCorrectAverage()
     {
-        _sut.RecordInvocation("Gen.A", 1000);
-        _sut.RecordInvocation("Gen.A", 3000);
+        _sut.RecordInvocation("Gen.A", 1000, DateTime.MinValue);
+        _sut.RecordInvocation("Gen.A", 3000, DateTime.MinValue);
 
         var result = _sut.GetSnapshot();
 
@@ -47,9 +47,9 @@ public sealed class GeneratorStatsAggregatorTests
     [Fact]
     public void GetSnapshot_WithMultipleInvocations_ComputesCorrectTotal()
     {
-        _sut.RecordInvocation("Gen.A", 100);
-        _sut.RecordInvocation("Gen.A", 200);
-        _sut.RecordInvocation("Gen.A", 300);
+        _sut.RecordInvocation("Gen.A", 100, DateTime.MinValue);
+        _sut.RecordInvocation("Gen.A", 200, DateTime.MinValue);
+        _sut.RecordInvocation("Gen.A", 300, DateTime.MinValue);
 
         var result = _sut.GetSnapshot();
 
@@ -63,7 +63,7 @@ public sealed class GeneratorStatsAggregatorTests
         // 10 values: 100, 200, ..., 1000. P90 index = ceil(10*0.9)-1 = 8 → sorted[8] = 900
         for (var i = 1; i <= 10; i++)
         {
-            _sut.RecordInvocation("Gen.A", i * 100);
+            _sut.RecordInvocation("Gen.A", i * 100, DateTime.MinValue);
         }
 
         var result = _sut.GetSnapshot();
@@ -75,9 +75,9 @@ public sealed class GeneratorStatsAggregatorTests
     [Fact]
     public void GetSnapshot_TracksMultipleGeneratorsSeparately()
     {
-        _sut.RecordInvocation("Gen.A", 1000);
-        _sut.RecordInvocation("Gen.B", 2000);
-        _sut.RecordInvocation("Gen.A", 3000);
+        _sut.RecordInvocation("Gen.A", 1000, DateTime.MinValue);
+        _sut.RecordInvocation("Gen.B", 2000, DateTime.MinValue);
+        _sut.RecordInvocation("Gen.A", 3000, DateTime.MinValue);
 
         var result = _sut.GetSnapshot();
 
@@ -95,11 +95,11 @@ public sealed class GeneratorStatsAggregatorTests
     [Fact]
     public void GetSnapshot_IsImmutableSnapshot_NotAffectedBySubsequentRecords()
     {
-        _sut.RecordInvocation("Gen.A", 1000);
+        _sut.RecordInvocation("Gen.A", 1000, DateTime.MinValue);
 
         var snapshot = _sut.GetSnapshot();
 
-        _sut.RecordInvocation("Gen.A", 9000);
+        _sut.RecordInvocation("Gen.A", 9000, DateTime.MinValue);
 
         var stat = Assert.Single(snapshot);
         Assert.Equal(1, stat.InvocationCount);
@@ -117,7 +117,7 @@ public sealed class GeneratorStatsAggregatorTests
             {
                 for (var i = 0; i < invocationsPerThread; i++)
                 {
-                    _sut.RecordInvocation("Gen.Concurrent", 100);
+                    _sut.RecordInvocation("Gen.Concurrent", 100, DateTime.MinValue);
                 }
             }, TestContext.Current.CancellationToken));
 
@@ -132,7 +132,7 @@ public sealed class GeneratorStatsAggregatorTests
     [Fact]
     public void GetSnapshot_WithNoExceptions_ReturnsZeroExceptionCount()
     {
-        _sut.RecordInvocation("Gen.A", 1000);
+        _sut.RecordInvocation("Gen.A", 1000, DateTime.MinValue);
 
         var result = _sut.GetSnapshot();
 
@@ -143,9 +143,9 @@ public sealed class GeneratorStatsAggregatorTests
     [Fact]
     public void RecordException_TracksExceptionCount()
     {
-        _sut.RecordInvocation("Gen.A", 1000);
-        _sut.RecordException("Gen.A");
-        _sut.RecordException("Gen.A");
+        _sut.RecordInvocation("Gen.A", 1000, DateTime.MinValue);
+        _sut.RecordException("Gen.A", DateTime.MinValue);
+        _sut.RecordException("Gen.A", DateTime.MinValue);
 
         var result = _sut.GetSnapshot();
 
@@ -157,7 +157,7 @@ public sealed class GeneratorStatsAggregatorTests
     [Fact]
     public void RecordException_ForNewGenerator_CreatesEntryWithZeroInvocations()
     {
-        _sut.RecordException("Gen.ExceptionOnly");
+        _sut.RecordException("Gen.ExceptionOnly", DateTime.MinValue);
 
         var result = _sut.GetSnapshot();
 
@@ -171,9 +171,9 @@ public sealed class GeneratorStatsAggregatorTests
     [Fact]
     public void RecordException_TracksMultipleGeneratorsSeparately()
     {
-        _sut.RecordException("Gen.A");
-        _sut.RecordException("Gen.A");
-        _sut.RecordException("Gen.B");
+        _sut.RecordException("Gen.A", DateTime.MinValue);
+        _sut.RecordException("Gen.A", DateTime.MinValue);
+        _sut.RecordException("Gen.B", DateTime.MinValue);
 
         var result = _sut.GetSnapshot();
 
@@ -184,5 +184,56 @@ public sealed class GeneratorStatsAggregatorTests
 
         var genB = Assert.Single(result, s => string.Equals(s.Name, "Gen.B", StringComparison.Ordinal));
         Assert.Equal(1, genB.ExceptionCount);
+    }
+
+    [Fact]
+    public void GetDetailedEvents_WhenNoEvents_ReturnsEmptyList()
+    {
+        var result = _sut.GetDetailedEvents();
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void GetDetailedEvents_RecordsInvocationEvents()
+    {
+        var timestamp = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+        _sut.RecordInvocation("Gen.A", 1000, timestamp);
+
+        var result = _sut.GetDetailedEvents();
+
+        var evt = Assert.Single(result);
+        Assert.Equal("Gen.A", evt.GeneratorName);
+        Assert.Equal(Models.GeneratorEventType.Invocation, evt.EventType);
+        Assert.Equal(1000L, evt.DurationTicks);
+        Assert.Equal(timestamp, evt.Timestamp);
+    }
+
+    [Fact]
+    public void GetDetailedEvents_RecordsExceptionEvents()
+    {
+        var timestamp = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+        _sut.RecordException("Gen.A", timestamp);
+
+        var result = _sut.GetDetailedEvents();
+
+        var evt = Assert.Single(result);
+        Assert.Equal("Gen.A", evt.GeneratorName);
+        Assert.Equal(Models.GeneratorEventType.Exception, evt.EventType);
+        Assert.Null(evt.DurationTicks);
+        Assert.Equal(timestamp, evt.Timestamp);
+    }
+
+    [Fact]
+    public void GetDetailedEvents_RecordsBothEventTypes()
+    {
+        var baseTime = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+        _sut.RecordInvocation("Gen.A", 500, baseTime);
+        _sut.RecordException("Gen.A", baseTime.AddSeconds(1));
+        _sut.RecordInvocation("Gen.B", 700, baseTime.AddSeconds(2));
+
+        var result = _sut.GetDetailedEvents();
+
+        Assert.Equal(3, result.Count);
     }
 }

@@ -14,6 +14,7 @@ if (!OperatingSystem.IsWindows())
 }
 
 var topOption = new Option<int>("--top") { Description = "Maximum number of rows to display", DefaultValueFactory = _ => 50, Recursive = true };
+var saveOnExitOption = new Option<bool>("--save-on-exit") { Description = "Save summary and detail CSV files when exiting", DefaultValueFactory = _ => false, Recursive = true };
 
 var generatorCommand = new Command("generator", "Monitor source generator performance");
 generatorCommand.SetAction(HandleGeneratorCommand);
@@ -26,6 +27,7 @@ var rootCommand = new RootCommand(
     "(source generators, compilations, etc.) from Visual Studio in real-time.")
 {
     topOption,
+    saveOnExitOption,
     generatorCommand,
     compilationCommand,
 };
@@ -43,6 +45,7 @@ async Task<int> HandleGeneratorCommand(ParseResult parseResult, CancellationToke
     }
 
     var top = parseResult.GetValue(topOption) is > 0 and var t ? t : 50;
+    var saveOnExit = parseResult.GetValue(saveOnExitOption);
 
     var aggregator = new GeneratorStatsAggregator();
     await using var listener = new CodeAnalysisEtwListener(aggregator);
@@ -54,7 +57,7 @@ async Task<int> HandleGeneratorCommand(ParseResult parseResult, CancellationToke
         new ConsoleKeyboardInput(),
         new WindowsEnvironmentContext());
 
-    return await handler.ExecuteAsync(top, ct);
+    return await handler.ExecuteAsync(top, saveOnExit, ct);
 }
 
 async Task<int> HandleCompilationCommand(ParseResult parseResult, CancellationToken ct)
@@ -65,6 +68,7 @@ async Task<int> HandleCompilationCommand(ParseResult parseResult, CancellationTo
     }
 
     var top = parseResult.GetValue(topOption) is > 0 and var t ? t : 50;
+    var saveOnExit = parseResult.GetValue(saveOnExitOption);
 
     var aggregator = new CompilationStatsAggregator();
     await using var listener = new CompilationEtwListener(aggregator);
@@ -76,5 +80,5 @@ async Task<int> HandleCompilationCommand(ParseResult parseResult, CancellationTo
         new ConsoleKeyboardInput(),
         new WindowsEnvironmentContext());
 
-    return await handler.ExecuteAsync(top, ct);
+    return await handler.ExecuteAsync(top, saveOnExit, ct);
 }

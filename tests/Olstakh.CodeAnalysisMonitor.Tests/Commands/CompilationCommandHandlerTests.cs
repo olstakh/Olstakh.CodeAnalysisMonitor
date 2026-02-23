@@ -21,7 +21,7 @@ public sealed class CompilationCommandHandlerTests
             console: console,
             environment: environment.Object);
 
-        var exitCode = await handler.ExecuteAsync(top: 50, TestContext.Current.CancellationToken);
+        var exitCode = await handler.ExecuteAsync(top: 50, saveOnExit: false, TestContext.Current.CancellationToken);
 
         Assert.Equal(1, exitCode);
         Assert.Contains("administrator privileges", console.Output, StringComparison.Ordinal);
@@ -70,7 +70,7 @@ public sealed class CompilationCommandHandlerTests
             keyboard: keyboard.Object,
             environment: environment.Object);
 
-        var exitCode = await handler.ExecuteAsync(top: 50, cts.Token);
+        var exitCode = await handler.ExecuteAsync(top: 50, saveOnExit: false, cts.Token);
 
         Assert.Equal(0, exitCode);
         Assert.Contains("MyApp.Core", console.Output, StringComparison.Ordinal);
@@ -124,7 +124,7 @@ public sealed class CompilationCommandHandlerTests
             environment: environment.Object);
 
         // top=1 → only the highest total duration should appear
-        var exitCode = await handler.ExecuteAsync(top: 1, cts.Token);
+        var exitCode = await handler.ExecuteAsync(top: 1, saveOnExit: false, cts.Token);
 
         Assert.Equal(0, exitCode);
 
@@ -181,7 +181,7 @@ public sealed class CompilationCommandHandlerTests
             keyboard: keyboard.Object,
             environment: environment.Object);
 
-        var exitCode = await handler.ExecuteAsync(top: 50, cts.Token);
+        var exitCode = await handler.ExecuteAsync(top: 50, saveOnExit: false, cts.Token);
 
         Assert.Equal(0, exitCode);
 

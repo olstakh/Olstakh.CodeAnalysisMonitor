@@ -72,13 +72,13 @@ internal sealed class CodeAnalysisEtwListener : ICodeAnalysisEtwListener
     {
         var generatorName = (string)data.PayloadByName("generatorName");
         var elapsedTicks = (long)data.PayloadByName("elapsedTicks");
-        _aggregator.RecordInvocation(generatorName, elapsedTicks);
+        _aggregator.RecordInvocation(generatorName, elapsedTicks, data.TimeStamp);
     }
 
     private void OnGeneratorException(TraceEvent data)
     {
         var generatorName = (string)data.PayloadByName("generatorName");
-        _aggregator.RecordException(generatorName);
+        _aggregator.RecordException(generatorName, data.TimeStamp);
     }
 
     /// <inheritdoc />

@@ -182,4 +182,55 @@ public sealed class CompilationStatsAggregatorTests
         var totalCompilations = result.Sum(static s => s.CompilationCount);
         Assert.Equal(threadCount * compilationsPerThread, totalCompilations);
     }
+
+    [Fact]
+    public void GetDetailedEvents_WhenNoEvents_ReturnsEmptyList()
+    {
+        var result = _sut.GetDetailedEvents();
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void GetDetailedEvents_AfterCompletedCompilation_RecordsEvent()
+    {
+        var start = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+        var stop = start.AddSeconds(2);
+
+        _sut.RecordStart("MyProject", start);
+        _sut.RecordStop("MyProject", stop);
+
+        var result = _sut.GetDetailedEvents();
+
+        var evt = Assert.Single(result);
+        Assert.Equal("MyProject", evt.ProjectName);
+        Assert.Equal(stop, evt.Timestamp);
+        Assert.Equal(2000.0, evt.DurationMs, precision: 1);
+    }
+
+    [Fact]
+    public void GetDetailedEvents_WithStartOnly_ReturnsEmpty()
+    {
+        _sut.RecordStart("MyProject", new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc));
+
+        var result = _sut.GetDetailedEvents();
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void GetDetailedEvents_RecordsMultipleEvents()
+    {
+        var baseTime = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+
+        _sut.RecordStart("ProjectA", baseTime);
+        _sut.RecordStop("ProjectA", baseTime.AddSeconds(1));
+
+        _sut.RecordStart("ProjectB", baseTime.AddSeconds(5));
+        _sut.RecordStop("ProjectB", baseTime.AddSeconds(8));
+
+        var result = _sut.GetDetailedEvents();
+
+        Assert.Equal(2, result.Count);
+    }
 }

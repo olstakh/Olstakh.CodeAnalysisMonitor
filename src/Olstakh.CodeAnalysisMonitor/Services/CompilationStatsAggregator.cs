@@ -7,6 +7,7 @@ namespace Olstakh.CodeAnalysisMonitor.Services;
 internal sealed class CompilationStatsAggregator : ICompilationStatsAggregator
 {
     private readonly ConcurrentDictionary<string, CompilationData> _compilations = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentBag<CompilationEvent> _events = [];
 
     /// <inheritdoc />
     public void RecordStart(string name, DateTime timestamp)
@@ -26,6 +27,13 @@ internal sealed class CompilationStatsAggregator : ICompilationStatsAggregator
             if (duration > TimeSpan.Zero)
             {
                 data.Durations.Add(duration.TotalMilliseconds);
+
+                _events.Add(new CompilationEvent
+                {
+                    Timestamp = timestamp,
+                    ProjectName = name,
+                    DurationMs = duration.TotalMilliseconds,
+                });
             }
         }
     }
@@ -71,5 +79,11 @@ internal sealed class CompilationStatsAggregator : ICompilationStatsAggregator
 
         /// <summary>Completed compilation durations in milliseconds.</summary>
         public ConcurrentBag<double> Durations { get; } = [];
+    }
+
+    /// <inheritdoc />
+    public IReadOnlyList<CompilationEvent> GetDetailedEvents()
+    {
+        return [.. _events];
     }
 }
