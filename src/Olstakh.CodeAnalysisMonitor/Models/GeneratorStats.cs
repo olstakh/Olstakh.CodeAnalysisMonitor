@@ -19,4 +19,7 @@ internal sealed record GeneratorStats
 
     /// <summary>Gets the 90th percentile duration.</summary>
     public required TimeSpan P90Duration { get; init; }
+
+    /// <summary>Gets the number of exceptions thrown by this generator.</summary>
+    public required int ExceptionCount { get; init; }
 }

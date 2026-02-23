@@ -128,4 +128,61 @@ public sealed class GeneratorStatsAggregatorTests
         Assert.Equal(threadCount * invocationsPerThread, stat.InvocationCount);
         Assert.Equal(TimeSpan.FromTicks(threadCount * invocationsPerThread * 100), stat.TotalDuration);
     }
+
+    [Fact]
+    public void GetSnapshot_WithNoExceptions_ReturnsZeroExceptionCount()
+    {
+        _sut.RecordInvocation("Gen.A", 1000);
+
+        var result = _sut.GetSnapshot();
+
+        var stat = Assert.Single(result);
+        Assert.Equal(0, stat.ExceptionCount);
+    }
+
+    [Fact]
+    public void RecordException_TracksExceptionCount()
+    {
+        _sut.RecordInvocation("Gen.A", 1000);
+        _sut.RecordException("Gen.A");
+        _sut.RecordException("Gen.A");
+
+        var result = _sut.GetSnapshot();
+
+        var stat = Assert.Single(result);
+        Assert.Equal(2, stat.ExceptionCount);
+        Assert.Equal(1, stat.InvocationCount);
+    }
+
+    [Fact]
+    public void RecordException_ForNewGenerator_CreatesEntryWithZeroInvocations()
+    {
+        _sut.RecordException("Gen.ExceptionOnly");
+
+        var result = _sut.GetSnapshot();
+
+        var stat = Assert.Single(result);
+        Assert.Equal("Gen.ExceptionOnly", stat.Name);
+        Assert.Equal(0, stat.InvocationCount);
+        Assert.Equal(1, stat.ExceptionCount);
+        Assert.Equal(TimeSpan.Zero, stat.TotalDuration);
+    }
+
+    [Fact]
+    public void RecordException_TracksMultipleGeneratorsSeparately()
+    {
+        _sut.RecordException("Gen.A");
+        _sut.RecordException("Gen.A");
+        _sut.RecordException("Gen.B");
+
+        var result = _sut.GetSnapshot();
+
+        Assert.Equal(2, result.Count);
+
+        var genA = Assert.Single(result, s => string.Equals(s.Name, "Gen.A", StringComparison.Ordinal));
+        Assert.Equal(2, genA.ExceptionCount);
+
+        var genB = Assert.Single(result, s => string.Equals(s.Name, "Gen.B", StringComparison.Ordinal));
+        Assert.Equal(1, genB.ExceptionCount);
+    }
 }

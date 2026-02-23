@@ -89,7 +89,7 @@ internal sealed class GeneratorCommandHandler
         {
             var key = _keyboard.ReadKey();
 
-            if (key.KeyChar is < '1' or > '5')
+            if (key.KeyChar is < '1' or > '6')
             {
                 continue;
             }

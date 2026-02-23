@@ -15,6 +15,7 @@ public sealed class GeneratorTableBuilderTests
             AverageDuration = TimeSpan.FromMilliseconds(50),
             TotalDuration = TimeSpan.FromMilliseconds(500),
             P90Duration = TimeSpan.FromMilliseconds(80),
+            ExceptionCount = 0,
         },
         new()
         {
@@ -23,6 +24,7 @@ public sealed class GeneratorTableBuilderTests
             AverageDuration = TimeSpan.FromMilliseconds(200),
             TotalDuration = TimeSpan.FromMilliseconds(1000),
             P90Duration = TimeSpan.FromMilliseconds(300),
+            ExceptionCount = 0,
         },
         new()
         {
@@ -31,6 +33,7 @@ public sealed class GeneratorTableBuilderTests
             AverageDuration = TimeSpan.FromMilliseconds(10),
             TotalDuration = TimeSpan.FromMilliseconds(200),
             P90Duration = TimeSpan.FromMilliseconds(15),
+            ExceptionCount = 0,
         },
     ];
 
@@ -56,6 +59,7 @@ public sealed class GeneratorTableBuilderTests
     [InlineData(3)]
     [InlineData(4)]
     [InlineData(5)]
+    [InlineData(6)]
     public void Build_WithValidSortColumn_DoesNotThrow(int sortColumn)
     {
         var exception = Record.Exception(
@@ -134,6 +138,92 @@ public sealed class GeneratorTableBuilderTests
         // GenGamma (20) > GenAlpha (10) > GenBeta (5)
         Assert.True(gammaIndex < alphaIndex, "GenGamma should appear before GenAlpha");
         Assert.True(alphaIndex < betaIndex, "GenAlpha should appear before GenBeta");
+    }
+
+    [Fact]
+    public void Build_WithNoExceptions_DoesNotShowExceptionsColumn()
+    {
+        var rendered = RenderToString(
+            GeneratorTableBuilder.Build(SampleStats, sortColumn: 5, ascending: false, maxRows: 50));
+
+        Assert.DoesNotContain("Exceptions", rendered, StringComparison.Ordinal);
+        Assert.Contains("1-5", rendered, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Build_WithExceptions_ShowsExceptionsColumn()
+    {
+        IReadOnlyList<GeneratorStats> statsWithExceptions =
+        [
+            new()
+            {
+                Name = "GenAlpha",
+                InvocationCount = 10,
+                AverageDuration = TimeSpan.FromMilliseconds(50),
+                TotalDuration = TimeSpan.FromMilliseconds(500),
+                P90Duration = TimeSpan.FromMilliseconds(80),
+                ExceptionCount = 3,
+            },
+            new()
+            {
+                Name = "GenBeta",
+                InvocationCount = 5,
+                AverageDuration = TimeSpan.FromMilliseconds(200),
+                TotalDuration = TimeSpan.FromMilliseconds(1000),
+                P90Duration = TimeSpan.FromMilliseconds(300),
+                ExceptionCount = 0,
+            },
+        ];
+
+        var rendered = RenderToString(
+            GeneratorTableBuilder.Build(statsWithExceptions, sortColumn: 5, ascending: false, maxRows: 50));
+
+        Assert.Contains("Exceptions", rendered, StringComparison.Ordinal);
+        Assert.Contains("1-6", rendered, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Build_SortByExceptionCountDescending_HighestFirst()
+    {
+        IReadOnlyList<GeneratorStats> statsWithExceptions =
+        [
+            new()
+            {
+                Name = "GenLow",
+                InvocationCount = 10,
+                AverageDuration = TimeSpan.FromMilliseconds(50),
+                TotalDuration = TimeSpan.FromMilliseconds(500),
+                P90Duration = TimeSpan.FromMilliseconds(80),
+                ExceptionCount = 1,
+            },
+            new()
+            {
+                Name = "GenHigh",
+                InvocationCount = 5,
+                AverageDuration = TimeSpan.FromMilliseconds(200),
+                TotalDuration = TimeSpan.FromMilliseconds(1000),
+                P90Duration = TimeSpan.FromMilliseconds(300),
+                ExceptionCount = 5,
+            },
+        ];
+
+        var rendered = RenderToString(
+            GeneratorTableBuilder.Build(statsWithExceptions, sortColumn: 6, ascending: false, maxRows: 50));
+
+        var highIndex = rendered.IndexOf("GenHigh", StringComparison.Ordinal);
+        var lowIndex = rendered.IndexOf("GenLow", StringComparison.Ordinal);
+
+        Assert.True(highIndex < lowIndex, "GenHigh (5 exceptions) should appear before GenLow (1 exception)");
+    }
+
+    [Fact]
+    public void Build_SortByColumn6_WhenNoExceptions_DoesNotThrow()
+    {
+        // When no exceptions column exists, pressing '6' still sorts by ExceptionCount (all 0) — benign
+        var exception = Record.Exception(
+            () => GeneratorTableBuilder.Build(SampleStats, sortColumn: 6, ascending: false, maxRows: 50));
+
+        Assert.Null(exception);
     }
 
     private static string RenderToString(Spectre.Console.Rendering.IRenderable renderable)
