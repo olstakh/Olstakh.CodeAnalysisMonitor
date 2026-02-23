@@ -6,22 +6,22 @@ using Spectre.Console;
 namespace Olstakh.CodeAnalysisMonitor.Commands;
 
 /// <summary>
-/// Handles the "workspace" command: captures RoslynEventSource ETW events and renders a live operations table.
+/// Handles the "compilation" command: captures ETW events and renders a live server compilation table.
 /// </summary>
-internal sealed class WorkspaceCommandHandler
+internal sealed class CompilationCommandHandler
 {
     private const int RefreshIntervalMs = 100;
-    private const int DefaultSortColumn = 6; // Total Duration
+    private const int DefaultSortColumn = 5; // Total Duration
 
-    private readonly IWorkspaceStatsAggregator _aggregator;
-    private readonly IRoslynEtwListener _listener;
+    private readonly ICompilationStatsAggregator _aggregator;
+    private readonly ICompilationEtwListener _listener;
     private readonly IAnsiConsole _console;
     private readonly IKeyboardInput _keyboard;
     private readonly IEnvironmentContext _environment;
 
-    public WorkspaceCommandHandler(
-        IWorkspaceStatsAggregator aggregator,
-        IRoslynEtwListener listener,
+    public CompilationCommandHandler(
+        ICompilationStatsAggregator aggregator,
+        ICompilationEtwListener listener,
         IAnsiConsole console,
         IKeyboardInput keyboard,
         IEnvironmentContext environment)
@@ -34,7 +34,7 @@ internal sealed class WorkspaceCommandHandler
     }
 
     /// <summary>
-    /// Runs the workspace operations monitoring loop.
+    /// Runs the compilation monitoring loop.
     /// </summary>
     /// <returns>Exit code: 0 on success, 1 on error.</returns>
     public async Task<int> ExecuteAsync(int top, CancellationToken cancellationToken)
@@ -54,7 +54,7 @@ internal sealed class WorkspaceCommandHandler
 
         _console.Clear();
 
-        var initialTable = WorkspaceTableBuilder.Build([], sortColumn, ascending, top);
+        var initialTable = CompilationTableBuilder.Build([], sortColumn, ascending, top);
 
         await _console.Live(initialTable)
             .AutoClear(true)
@@ -66,7 +66,7 @@ internal sealed class WorkspaceCommandHandler
                     ProcessKeyboardInput(ref sortColumn, ref ascending);
 
                     var snapshot = _aggregator.GetSnapshot();
-                    var table = WorkspaceTableBuilder.Build(snapshot, sortColumn, ascending, top);
+                    var table = CompilationTableBuilder.Build(snapshot, sortColumn, ascending, top);
                     ctx.UpdateTarget(table);
 
                     try
@@ -89,7 +89,7 @@ internal sealed class WorkspaceCommandHandler
         {
             var key = _keyboard.ReadKey();
 
-            if (key.KeyChar is < '1' or > '6')
+            if (key.KeyChar is < '1' or > '5')
             {
                 continue;
             }

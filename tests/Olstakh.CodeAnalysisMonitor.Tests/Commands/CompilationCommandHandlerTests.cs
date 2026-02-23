@@ -8,7 +8,7 @@ using Xunit;
 
 namespace Olstakh.CodeAnalysisMonitor.Tests.Commands;
 
-public sealed class WorkspaceCommandHandlerTests
+public sealed class CompilationCommandHandlerTests
 {
     [Fact]
     public async Task ExecuteAsync_WhenNotAdmin_ReturnsExitCode1AndShowsError()
@@ -29,22 +29,17 @@ public sealed class WorkspaceCommandHandlerTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WithEvents_RendersOperationNamesInTable()
+    public async Task ExecuteAsync_WithEvents_RendersProjectNamesInTable()
     {
         using var console = new TestConsole();
         console.EmitAnsiSequences = false;
 
-        var aggregator = new WorkspaceStatsAggregator();
-        aggregator.RecordBlockCompleted(functionId: 60, durationMs: 100);
-        aggregator.RecordBlockCompleted(functionId: 76, durationMs: 200);
-        aggregator.RecordBlockCanceled(functionId: 76, durationMs: 50);
-
-        aggregator.RegisterFunctionDefinitions(
-            """
-            1.0.0
-            60 Workspace_Project_GetCompilation Undefined
-            76 FindReference Undefined
-            """);
+        var baseTime = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+        var aggregator = new CompilationStatsAggregator();
+        aggregator.RecordStart("MyApp.Core", baseTime);
+        aggregator.RecordStop("MyApp.Core", baseTime.AddSeconds(2));
+        aggregator.RecordStart("MyApp.Web", baseTime.AddSeconds(5));
+        aggregator.RecordStop("MyApp.Web", baseTime.AddSeconds(8));
 
         using var cts = new CancellationTokenSource();
 
@@ -62,7 +57,7 @@ public sealed class WorkspaceCommandHandlerTests
             })
             .Verifiable();
 
-        var listener = new Mock<IRoslynEtwListener>(MockBehavior.Strict);
+        var listener = new Mock<ICompilationEtwListener>(MockBehavior.Strict);
         listener.Setup(l => l.Start()).Verifiable();
 
         var environment = new Mock<IEnvironmentContext>(MockBehavior.Strict);
@@ -78,22 +73,26 @@ public sealed class WorkspaceCommandHandlerTests
         var exitCode = await handler.ExecuteAsync(top: 50, cts.Token);
 
         Assert.Equal(0, exitCode);
-        Assert.Contains("Workspace_Project_GetCompilation", console.Output, StringComparison.Ordinal);
-        Assert.Contains("FindReference", console.Output, StringComparison.Ordinal);
+        Assert.Contains("MyApp.Core", console.Output, StringComparison.Ordinal);
+        Assert.Contains("MyApp.Web", console.Output, StringComparison.Ordinal);
         listener.Verify();
         environment.Verify();
     }
 
     [Fact]
-    public async Task ExecuteAsync_WithTopLimit_OnlyShowsTopNOperations()
+    public async Task ExecuteAsync_WithTopLimit_OnlyShowsTopNProjects()
     {
         using var console = new TestConsole();
         console.EmitAnsiSequences = false;
 
-        var aggregator = new WorkspaceStatsAggregator();
-        aggregator.RecordBlockCompleted(functionId: 60, durationMs: 100);
-        aggregator.RecordBlockCompleted(functionId: 76, durationMs: 500);
-        aggregator.RecordBlockCompleted(functionId: 13, durationMs: 10);
+        var baseTime = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+        var aggregator = new CompilationStatsAggregator();
+        aggregator.RecordStart("Small", baseTime);
+        aggregator.RecordStop("Small", baseTime.AddMilliseconds(100));
+        aggregator.RecordStart("Big", baseTime.AddSeconds(1));
+        aggregator.RecordStop("Big", baseTime.AddSeconds(6));
+        aggregator.RecordStart("Medium", baseTime.AddSeconds(10));
+        aggregator.RecordStop("Medium", baseTime.AddSeconds(11));
 
         using var cts = new CancellationTokenSource();
 
@@ -111,7 +110,7 @@ public sealed class WorkspaceCommandHandlerTests
             })
             .Verifiable();
 
-        var listener = new Mock<IRoslynEtwListener>(MockBehavior.Strict);
+        var listener = new Mock<ICompilationEtwListener>(MockBehavior.Strict);
         listener.Setup(l => l.Start()).Verifiable();
 
         var environment = new Mock<IEnvironmentContext>(MockBehavior.Strict);
@@ -129,8 +128,11 @@ public sealed class WorkspaceCommandHandlerTests
 
         Assert.Equal(0, exitCode);
 
-        // FunctionId 76 has the highest total (500ms), so it should be present
-        Assert.Contains("76", console.Output, StringComparison.Ordinal);
+        // "Big" has the highest total (5s), so it should be present
+        Assert.Contains("Big", console.Output, StringComparison.Ordinal);
+        // Others should be excluded
+        Assert.DoesNotContain("Small", console.Output, StringComparison.Ordinal);
+        Assert.DoesNotContain("Medium", console.Output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -139,17 +141,11 @@ public sealed class WorkspaceCommandHandlerTests
         using var console = new TestConsole();
         console.EmitAnsiSequences = false;
 
-        var aggregator = new WorkspaceStatsAggregator();
-        // FunctionId 60: many completions, low total
-        aggregator.RecordBlockCompleted(functionId: 60, durationMs: 10);
-        aggregator.RecordBlockCompleted(functionId: 60, durationMs: 10);
-        aggregator.RecordBlockCompleted(functionId: 60, durationMs: 10);
-        // FunctionId 76: fewer completions, high total
-        aggregator.RecordBlockCompleted(functionId: 76, durationMs: 900);
+        var aggregator = CreateFrequentVsSlowAggregator();
 
         using var cts = new CancellationTokenSource();
 
-        // Simulate pressing '2' (sort by completed count) then no more keys
+        // Simulate pressing '2' (sort by count) then no more keys
         var keyPresses = new Queue<ConsoleKeyInfo>(
         [
             new ConsoleKeyInfo('2', ConsoleKey.D2, false, false, false),
@@ -172,7 +168,7 @@ public sealed class WorkspaceCommandHandlerTests
             .Returns(keyPresses.Dequeue)
             .Verifiable();
 
-        var listener = new Mock<IRoslynEtwListener>(MockBehavior.Strict);
+        var listener = new Mock<ICompilationEtwListener>(MockBehavior.Strict);
         listener.Setup(l => l.Start()).Verifiable();
 
         var environment = new Mock<IEnvironmentContext>(MockBehavior.Strict);
@@ -189,24 +185,45 @@ public sealed class WorkspaceCommandHandlerTests
 
         Assert.Equal(0, exitCode);
 
-        // Sorted by completed count desc: FunctionId 60 (3) should appear before 76 (1)
-        var id60Index = console.Output.IndexOf("60", StringComparison.Ordinal);
-        var id76Index = console.Output.IndexOf("76", StringComparison.Ordinal);
-        Assert.True(id60Index < id76Index, "FunctionId 60 should appear before 76 when sorted by completed count descending");
+        // Sorted by count desc: Frequent (3) should appear before Slow (1)
+        var frequentIndex = console.Output.IndexOf("Frequent", StringComparison.Ordinal);
+        var slowIndex = console.Output.IndexOf("Slow", StringComparison.Ordinal);
+        Assert.True(frequentIndex < slowIndex, "Frequent should appear before Slow when sorted by count descending");
     }
 
-    private static WorkspaceCommandHandler CreateHandler(
-        IWorkspaceStatsAggregator? aggregator = null,
-        IRoslynEtwListener? listener = null,
+    private static CompilationCommandHandler CreateHandler(
+        ICompilationStatsAggregator? aggregator = null,
+        ICompilationEtwListener? listener = null,
         IAnsiConsole? console = null,
         IKeyboardInput? keyboard = null,
         IEnvironmentContext? environment = null)
     {
-        return new WorkspaceCommandHandler(
-            aggregator ?? new WorkspaceStatsAggregator(),
-            listener ?? Mock.Of<IRoslynEtwListener>(),
+        return new CompilationCommandHandler(
+            aggregator ?? new CompilationStatsAggregator(),
+            listener ?? Mock.Of<ICompilationEtwListener>(),
             console ?? throw new ArgumentNullException(nameof(console)),
             keyboard ?? Mock.Of<IKeyboardInput>(),
             environment ?? Mock.Of<IEnvironmentContext>(e => e.IsRunningAsAdministrator == true));
+    }
+
+    /// <summary>
+    /// Creates an aggregator with "Frequent" (3 compilations, 50ms each) and "Slow" (1 compilation, 10s).
+    /// </summary>
+    private static CompilationStatsAggregator CreateFrequentVsSlowAggregator()
+    {
+        var baseTime = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+        var aggregator = new CompilationStatsAggregator();
+
+        aggregator.RecordStart("Frequent", baseTime);
+        aggregator.RecordStop("Frequent", baseTime.AddMilliseconds(50));
+        aggregator.RecordStart("Frequent", baseTime.AddSeconds(1));
+        aggregator.RecordStop("Frequent", baseTime.AddSeconds(1).AddMilliseconds(50));
+        aggregator.RecordStart("Frequent", baseTime.AddSeconds(2));
+        aggregator.RecordStop("Frequent", baseTime.AddSeconds(2).AddMilliseconds(50));
+
+        aggregator.RecordStart("Slow", baseTime.AddSeconds(5));
+        aggregator.RecordStop("Slow", baseTime.AddSeconds(15));
+
+        return aggregator;
     }
 }
