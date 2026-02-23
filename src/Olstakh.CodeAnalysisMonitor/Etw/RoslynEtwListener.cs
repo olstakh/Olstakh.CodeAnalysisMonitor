@@ -10,8 +10,16 @@ namespace Olstakh.CodeAnalysisMonitor.Etw;
 internal sealed class RoslynEtwListener : IRoslynEtwListener
 {
     /// <summary>
-    /// ETW provider name for Roslyn's RoslynEventSource.
-    /// Matches the [EventSource(Name = "RoslynEventSource")] attribute.
+    /// ETW provider GUID for Roslyn's RoslynEventSource.
+    /// Documented in the Roslyn source: [EventSource(Name = "RoslynEventSource")]
+    /// with GUID {bf965e67-c7fb-5c5b-d98f-cdf68f8154c2}.
+    /// We use the GUID directly because this EventSource-based provider is not
+    /// registered on the system (unlike manifest-based providers such as Microsoft-CodeAnalysis-General).
+    /// </summary>
+    private static readonly Guid ProviderGuid = new("bf965e67-c7fb-5c5b-d98f-cdf68f8154c2");
+
+    /// <summary>
+    /// The EventSource name, used for matching events in TraceEvent callbacks.
     /// </summary>
     private const string ProviderName = "RoslynEventSource";
 
@@ -43,8 +51,10 @@ internal sealed class RoslynEtwListener : IRoslynEtwListener
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        // Enable at Verbose level with all keywords to capture all RoslynEventSource events
-        _session.EnableProvider(ProviderName, TraceEventLevel.Verbose, ulong.MaxValue);
+        // Enable at Verbose level with all keywords to capture all RoslynEventSource events.
+        // Must use the GUID (not the string name) because this is an EventSource-based provider
+        // that is not registered in the system ETW provider catalog.
+        _session.EnableProvider(ProviderGuid, TraceEventLevel.Verbose, ulong.MaxValue);
 
         _session.Source.Dynamic.AddCallbackForProviderEvent(
             ProviderName,
