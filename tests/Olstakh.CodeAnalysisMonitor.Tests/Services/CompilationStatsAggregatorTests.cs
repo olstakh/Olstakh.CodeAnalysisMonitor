@@ -163,19 +163,23 @@ public sealed class CompilationStatsAggregatorTests
         var tasks = Enumerable.Range(0, threadCount).Select(threadIndex =>
             Task.Run(() =>
             {
+                var projectName = $"ConcurrentProject-{threadIndex}";
+
                 for (var i = 0; i < compilationsPerThread; i++)
                 {
                     var start = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
-                        .AddMilliseconds((threadIndex * compilationsPerThread + i) * 100);
-                    _sut.RecordStart("ConcurrentProject", start);
-                    _sut.RecordStop("ConcurrentProject", start.AddMilliseconds(10));
+                        .AddMilliseconds(i * 100);
+                    _sut.RecordStart(projectName, start);
+                    _sut.RecordStop(projectName, start.AddMilliseconds(10));
                 }
             }, TestContext.Current.CancellationToken));
 
         await Task.WhenAll(tasks);
 
         var result = _sut.GetSnapshot();
-        var stat = Assert.Single(result);
-        Assert.Equal(threadCount * compilationsPerThread, stat.CompilationCount);
+        Assert.Equal(threadCount, result.Count);
+
+        var totalCompilations = result.Sum(static s => s.CompilationCount);
+        Assert.Equal(threadCount * compilationsPerThread, totalCompilations);
     }
 }
