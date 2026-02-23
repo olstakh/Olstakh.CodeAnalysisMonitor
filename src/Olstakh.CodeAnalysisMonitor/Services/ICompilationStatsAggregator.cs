@@ -25,4 +25,9 @@ internal interface ICompilationStatsAggregator
     /// Returns an immutable snapshot of current statistics for all recorded compilations.
     /// </summary>
     IReadOnlyList<CompilationStats> GetSnapshot();
+
+    /// <summary>
+    /// Returns an immutable snapshot of all individual completed compilation events.
+    /// </summary>
+    IReadOnlyList<CompilationEvent> GetDetailedEvents();
 }

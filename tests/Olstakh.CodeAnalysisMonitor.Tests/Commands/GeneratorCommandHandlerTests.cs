@@ -21,7 +21,7 @@ public sealed class GeneratorCommandHandlerTests
             console: console,
             environment: environment.Object);
 
-        var exitCode = await handler.ExecuteAsync(top: 50, TestContext.Current.CancellationToken);
+        var exitCode = await handler.ExecuteAsync(top: 50, saveOnExit: false, TestContext.Current.CancellationToken);
 
         Assert.Equal(1, exitCode);
         Assert.Contains("administrator privileges", console.Output, StringComparison.Ordinal);
@@ -35,9 +35,9 @@ public sealed class GeneratorCommandHandlerTests
         console.EmitAnsiSequences = false;
 
         var aggregator = new GeneratorStatsAggregator();
-        aggregator.RecordInvocation("MyApp.Generators.FastGen", 5000);
-        aggregator.RecordInvocation("MyApp.Generators.SlowGen", 50000);
-        aggregator.RecordInvocation("MyApp.Generators.SlowGen", 70000);
+        aggregator.RecordInvocation("MyApp.Generators.FastGen", 5000, DateTime.MinValue);
+        aggregator.RecordInvocation("MyApp.Generators.SlowGen", 50000, DateTime.MinValue);
+        aggregator.RecordInvocation("MyApp.Generators.SlowGen", 70000, DateTime.MinValue);
 
         using var cts = new CancellationTokenSource();
 
@@ -70,7 +70,7 @@ public sealed class GeneratorCommandHandlerTests
             keyboard: keyboard.Object,
             environment: environment.Object);
 
-        var exitCode = await handler.ExecuteAsync(top: 50, cts.Token);
+        var exitCode = await handler.ExecuteAsync(top: 50, saveOnExit: false, cts.Token);
 
         Assert.Equal(0, exitCode);
         Assert.Contains("FastGen", console.Output, StringComparison.Ordinal);
@@ -86,9 +86,9 @@ public sealed class GeneratorCommandHandlerTests
         console.EmitAnsiSequences = false;
 
         var aggregator = new GeneratorStatsAggregator();
-        aggregator.RecordInvocation("Gen.Alpha", 1000);
-        aggregator.RecordInvocation("Gen.Beta", 5000);
-        aggregator.RecordInvocation("Gen.Gamma", 100);
+        aggregator.RecordInvocation("Gen.Alpha", 1000, DateTime.MinValue);
+        aggregator.RecordInvocation("Gen.Beta", 5000, DateTime.MinValue);
+        aggregator.RecordInvocation("Gen.Gamma", 100, DateTime.MinValue);
 
         using var cts = new CancellationTokenSource();
 
@@ -120,7 +120,7 @@ public sealed class GeneratorCommandHandlerTests
             environment: environment.Object);
 
         // top=1 → only the highest total duration should appear
-        var exitCode = await handler.ExecuteAsync(top: 1, cts.Token);
+        var exitCode = await handler.ExecuteAsync(top: 1, saveOnExit: false, cts.Token);
 
         Assert.Equal(0, exitCode);
 
@@ -139,11 +139,11 @@ public sealed class GeneratorCommandHandlerTests
 
         var aggregator = new GeneratorStatsAggregator();
         // Gen.Many has more invocations but less total time
-        aggregator.RecordInvocation("Gen.Many", 100);
-        aggregator.RecordInvocation("Gen.Many", 100);
-        aggregator.RecordInvocation("Gen.Many", 100);
+        aggregator.RecordInvocation("Gen.Many", 100, DateTime.MinValue);
+        aggregator.RecordInvocation("Gen.Many", 100, DateTime.MinValue);
+        aggregator.RecordInvocation("Gen.Many", 100, DateTime.MinValue);
         // Gen.Slow has fewer invocations but more total time
-        aggregator.RecordInvocation("Gen.Slow", 9000);
+        aggregator.RecordInvocation("Gen.Slow", 9000, DateTime.MinValue);
 
         using var cts = new CancellationTokenSource();
 
@@ -183,7 +183,7 @@ public sealed class GeneratorCommandHandlerTests
             keyboard: keyboard.Object,
             environment: environment.Object);
 
-        var exitCode = await handler.ExecuteAsync(top: 50, cts.Token);
+        var exitCode = await handler.ExecuteAsync(top: 50, saveOnExit: false, cts.Token);
 
         Assert.Equal(0, exitCode);
 

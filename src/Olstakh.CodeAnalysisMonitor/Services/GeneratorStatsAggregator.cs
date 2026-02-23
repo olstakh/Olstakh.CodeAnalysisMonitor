@@ -7,19 +7,35 @@ namespace Olstakh.CodeAnalysisMonitor.Services;
 internal sealed class GeneratorStatsAggregator : IGeneratorStatsAggregator
 {
     private readonly ConcurrentDictionary<string, GeneratorData> _generators = [];
+    private readonly ConcurrentBag<GeneratorEvent> _events = [];
 
     /// <inheritdoc />
-    public void RecordInvocation(string generatorName, long elapsedTicks)
+    public void RecordInvocation(string generatorName, long elapsedTicks, DateTime timestamp)
     {
         var data = _generators.GetOrAdd(generatorName, static _ => new GeneratorData());
         data.Durations.Add(elapsedTicks);
+
+        _events.Add(new GeneratorEvent
+        {
+            Timestamp = timestamp,
+            GeneratorName = generatorName,
+            EventType = GeneratorEventType.Invocation,
+            DurationTicks = elapsedTicks,
+        });
     }
 
     /// <inheritdoc />
-    public void RecordException(string generatorName)
+    public void RecordException(string generatorName, DateTime timestamp)
     {
         var data = _generators.GetOrAdd(generatorName, static _ => new GeneratorData());
         data.ExceptionCounts.Add(1);
+
+        _events.Add(new GeneratorEvent
+        {
+            Timestamp = timestamp,
+            GeneratorName = generatorName,
+            EventType = GeneratorEventType.Exception,
+        });
     }
 
     /// <inheritdoc />
@@ -74,5 +90,11 @@ internal sealed class GeneratorStatsAggregator : IGeneratorStatsAggregator
     {
         public ConcurrentBag<long> Durations { get; } = [];
         public ConcurrentBag<int> ExceptionCounts { get; } = [];
+    }
+
+    /// <inheritdoc />
+    public IReadOnlyList<GeneratorEvent> GetDetailedEvents()
+    {
+        return [.. _events];
     }
 }

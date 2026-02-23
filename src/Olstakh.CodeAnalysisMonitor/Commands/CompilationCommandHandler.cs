@@ -1,4 +1,5 @@
 using Olstakh.CodeAnalysisMonitor.Etw;
+using Olstakh.CodeAnalysisMonitor.Export;
 using Olstakh.CodeAnalysisMonitor.Rendering;
 using Olstakh.CodeAnalysisMonitor.Services;
 using Spectre.Console;
@@ -37,7 +38,7 @@ internal sealed class CompilationCommandHandler
     /// Runs the compilation monitoring loop.
     /// </summary>
     /// <returns>Exit code: 0 on success, 1 on error.</returns>
-    public async Task<int> ExecuteAsync(int top, CancellationToken cancellationToken)
+    public async Task<int> ExecuteAsync(int top, bool saveOnExit, CancellationToken cancellationToken)
     {
         if (!_environment.IsRunningAsAdministrator)
         {
@@ -65,7 +66,9 @@ internal sealed class CompilationCommandHandler
                 {
                     ProcessKeyboardInput(ref sortColumn, ref ascending);
 
-                    var snapshot = _aggregator.GetSnapshot();
+                    var snapshot = _aggregator.GetSnapshot()
+                        .Where(static s => !string.IsNullOrWhiteSpace(s.Name))
+                        .ToList();
                     var table = CompilationTableBuilder.Build(snapshot, sortColumn, ascending, top);
                     ctx.UpdateTarget(table);
 
@@ -80,7 +83,32 @@ internal sealed class CompilationCommandHandler
                 }
             });
 
+        if (saveOnExit)
+        {
+            SaveCsvFiles();
+        }
+
         return 0;
+    }
+
+    private void SaveCsvFiles()
+    {
+        var timestamp = DateTime.Now.ToString("yyyyMMdd-HHmmss", System.Globalization.CultureInfo.InvariantCulture);
+
+        var summaryPath = $"compilation-summary-{timestamp}.csv";
+        using (var writer = new StreamWriter(summaryPath))
+        {
+            CompilationCsvExporter.WriteSummary(writer, _aggregator.GetSnapshot());
+        }
+
+        var detailPath = $"compilation-detail-{timestamp}.csv";
+        using (var writer = new StreamWriter(detailPath))
+        {
+            CompilationCsvExporter.WriteDetails(writer, _aggregator.GetDetailedEvents());
+        }
+
+        _console.MarkupLine($"[green]Saved:[/] {Markup.Escape(summaryPath)}");
+        _console.MarkupLine($"[green]Saved:[/] {Markup.Escape(detailPath)}");
     }
 
     private void ProcessKeyboardInput(ref int sortColumn, ref bool ascending)
