@@ -51,6 +51,12 @@ Shows a live table of VBCSCompiler server compilation durations. Events fire dur
 | Option | Default | Description |
 |---|---|---|
 | `--top N` | 50 | Maximum number of rows to display |
+| `--save-on-exit` | `false` | Export collected data to CSV files on exit |
+
+When `--save-on-exit` is specified, two CSV files are written to the current directory on exit:
+
+- **Summary** (`generator-summary-<timestamp>.csv` or `compilation-summary-<timestamp>.csv`) — one row per generator/project with aggregated stats.
+- **Detail** (`generator-detail-<timestamp>.csv` or `compilation-detail-<timestamp>.csv`) — one row per individual event, ordered by timestamp.
 
 ### Keyboard Controls
 
