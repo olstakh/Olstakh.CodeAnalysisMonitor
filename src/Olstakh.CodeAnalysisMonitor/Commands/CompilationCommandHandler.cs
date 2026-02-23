@@ -10,7 +10,7 @@ namespace Olstakh.CodeAnalysisMonitor.Commands;
 /// </summary>
 internal sealed class CompilationCommandHandler
 {
-    private const int RefreshIntervalMs = 100;
+    private const int RefreshIntervalMs = 1000;
     private const int DefaultSortColumn = 5; // Total Duration
 
     private readonly ICompilationStatsAggregator _aggregator;
